@@ -1,4 +1,4 @@
-import 'package:cash_in_out/Sign_up.dart';
+import 'package:cash_in_out/splash_screen.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -10,6 +10,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(title: 'Cash In-Out', home:  SignUpScreen());
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Cash In-Out',
+       home: SplashScreen()
+       );
   }
 }

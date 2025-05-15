@@ -1,7 +1,8 @@
+import 'package:cash_in_out/otp_screen.dart';
 import 'package:flutter/material.dart';
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({Key? key}) : super(key: key);
+  const SignUpScreen({super.key});
 
   @override
   State<SignUpScreen> createState() => _SignUpScreenState();
@@ -22,10 +23,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isLoading = true);
       final mobile = _mobileController.text.trim();
-      Future.delayed(const Duration(seconds: 1), () {
+      Future.delayed(const Duration(seconds: 1), () async {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(
-          context,
+          await Navigator.push(context, MaterialPageRoute(builder: (context) => OtpScreen(mobileNumber: mobile)))
         ).showSnackBar(SnackBar(content: Text('OTP sent to $mobile')));
       });
     }
@@ -99,7 +100,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 return 'Please enter your mobile number';
                               }
                               if (!RegExp(
-                                r'^\d{10}\$',
+                                r'^\d{10}$',
                               ).hasMatch(value.trim())) {
                                 return 'Enter a valid 10-digit number';
                               }
