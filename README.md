@@ -1,16 +1,6 @@
-# cash_in_out
-
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+"Cash In-Out" is a mobile application tailored for users in the textile market to
+efficiently manage their client information and payment transactions. The app enables
+users to record client details, track payments (including installment-based payments),
+and view real-time updates on received amounts and outstanding balances. This
+application aims to simplify financial record-keeping, improve transparency, and
+enhance client relationship management for textile businesses.
