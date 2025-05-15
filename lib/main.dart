@@ -10,6 +10,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(title: 'Cash In-Out', home: const SignUpScreen());
+    return MaterialApp(title: 'Cash In-Out', home:  SignUpScreen());
   }
 }
