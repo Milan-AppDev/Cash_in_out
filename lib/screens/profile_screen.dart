@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import '../services/payment_service.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  final PaymentService paymentService;
+
+  const ProfileScreen({Key? key, required this.paymentService})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -19,12 +23,7 @@ class ProfileScreen extends StatelessWidget {
         ),
         centerTitle: true,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {},
-          ),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.edit), onPressed: () {})],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -36,27 +35,17 @@ class ProfileScreen extends StatelessWidget {
                   const CircleAvatar(
                     radius: 50,
                     backgroundColor: Colors.blueAccent,
-                    child: Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Colors.white,
-                    ),
+                    child: Icon(Icons.person, size: 50, color: Colors.white),
                   ),
                   const SizedBox(height: 16),
                   const Text(
                     'John Doe',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'ID: #12345',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -125,15 +114,10 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const Divider(height: 1),
                     ListTile(
-                      leading: const Icon(
-                        Icons.logout,
-                        color: Colors.red,
-                      ),
+                      leading: const Icon(Icons.logout, color: Colors.red),
                       title: const Text(
                         'Logout',
-                        style: TextStyle(
-                          color: Colors.red,
-                        ),
+                        style: TextStyle(color: Colors.red),
                       ),
                       onTap: () {},
                     ),
@@ -156,21 +140,14 @@ class ProfileScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: Colors.blueAccent,
-            size: 24,
-          ),
+          Icon(icon, color: Colors.blueAccent, size: 24),
           const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
               const SizedBox(height: 4),
               Text(
@@ -186,4 +163,4 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
-} 
+}

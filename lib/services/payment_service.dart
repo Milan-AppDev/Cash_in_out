@@ -6,14 +6,14 @@ import '../models/transaction.dart';
 
 class PaymentService {
   final String baseUrl; // Your API base URL
-  
+
   PaymentService({required this.baseUrl});
 
   // Create a new payment
   Future<Payment> createPayment(Payment payment) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/payments'),
+        Uri.parse("$baseUrl/payments"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payment.toJson()),
       );
@@ -31,7 +31,7 @@ class PaymentService {
   // Get all payments
   Future<List<Payment>> getPayments() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/payments'));
+      final response = await http.get(Uri.parse("$baseUrl/payments"));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -47,7 +47,7 @@ class PaymentService {
   // Get payment by ID
   Future<Payment> getPaymentById(String id) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/payments/$id'));
+      final response = await http.get(Uri.parse("$baseUrl/payments/$id"));
 
       if (response.statusCode == 200) {
         return Payment.fromJson(jsonDecode(response.body));
@@ -63,7 +63,7 @@ class PaymentService {
   Future<Installment> addInstallment(Installment installment) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/installments'),
+        Uri.parse("$baseUrl/installments"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(installment.toJson()),
       );
@@ -82,7 +82,7 @@ class PaymentService {
   Future<Transaction> recordTransaction(Transaction transaction) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/transactions'),
+        Uri.parse("$baseUrl/transactions"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(transaction.toJson()),
       );
@@ -101,7 +101,7 @@ class PaymentService {
   Future<List<Transaction>> getTransactionsByPaymentId(String paymentId) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/transactions/payment/$paymentId'),
+        Uri.parse("$baseUrl/transactions/payment/$paymentId"),
       );
 
       if (response.statusCode == 200) {
@@ -115,14 +115,30 @@ class PaymentService {
     }
   }
 
+  // New method to get all transactions
+  Future<List<Transaction>> getAllTransactions() async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl/transactions"));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Transaction.fromJson(json)).toList();
+      } else {
+        throw Exception('Failed to load all transactions');
+      }
+    } catch (e) {
+      throw Exception('Error loading all transactions: $e');
+    }
+  }
+
   // Update payment status
   Future<Payment> updatePaymentStatus(
-    String paymentId, 
+    String paymentId,
     PaymentStatus status,
   ) async {
     try {
       final response = await http.patch(
-        Uri.parse('$baseUrl/payments/$paymentId/status'),
+        Uri.parse("$baseUrl/payments/$paymentId/status"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'status': status.toString()}),
       );
@@ -136,4 +152,4 @@ class PaymentService {
       throw Exception('Error updating payment status: $e');
     }
   }
-} 
+}

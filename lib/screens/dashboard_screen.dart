@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import '../services/payment_service.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  final PaymentService paymentService;
+
+  const DashboardScreen({Key? key, required this.paymentService})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -37,10 +41,7 @@ class DashboardScreen extends StatelessWidget {
                   children: [
                     const Text(
                       'Balance',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey,
-                      ),
+                      style: TextStyle(fontSize: 18, color: Colors.grey),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -91,10 +92,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 24),
             const Text(
               'Recent Transactions',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ListView.builder(
@@ -110,25 +108,22 @@ class DashboardScreen extends StatelessWidget {
                   ),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: index % 2 == 0 
-                          ? Colors.green.withOpacity(0.2)
-                          : Colors.red.withOpacity(0.2),
+                      backgroundColor:
+                          index % 2 == 0
+                              ? Colors.green.withOpacity(0.2)
+                              : Colors.red.withOpacity(0.2),
                       child: Icon(
-                        index % 2 == 0 
+                        index % 2 == 0
                             ? Icons.arrow_downward
                             : Icons.arrow_upward,
-                        color: index % 2 == 0 
-                            ? Colors.green
-                            : Colors.red,
+                        color: index % 2 == 0 ? Colors.green : Colors.red,
                       ),
                     ),
                     title: Text(
                       index % 2 == 0 ? 'Cash In' : 'Cash Out',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(
-                      'Transaction ID: #${1000 + index}',
-                    ),
+                    subtitle: Text('Transaction ID: #${1000 + index}'),
                     trailing: Text(
                       index % 2 == 0 ? '+₹5,000' : '-₹3,000',
                       style: TextStyle(
@@ -145,4 +140,4 @@ class DashboardScreen extends StatelessWidget {
       ),
     );
   }
-} 
+}

@@ -1,7 +1,25 @@
 import 'package:flutter/material.dart';
+import '../services/payment_service.dart';
+import '../models/transaction.dart';
 
-class TransactionsScreen extends StatelessWidget {
-  const TransactionsScreen({Key? key}) : super(key: key);
+class TransactionsScreen extends StatefulWidget {
+  final PaymentService paymentService;
+
+  const TransactionsScreen({Key? key, required this.paymentService})
+    : super(key: key);
+
+  @override
+  _TransactionsScreenState createState() => _TransactionsScreenState();
+}
+
+class _TransactionsScreenState extends State<TransactionsScreen> {
+  late Future<List<Transaction>> _transactionsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _transactionsFuture = widget.paymentService.getAllTransactions();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,48 +38,30 @@ class TransactionsScreen extends StatelessWidget {
         centerTitle: true,
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search transactions...',
-                          border: InputBorder.none,
-                          icon: const Icon(Icons.search),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.filter_list),
-                      onPressed: () {},
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
+      body: FutureBuilder<List<Transaction>>(
+        future: _transactionsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(
+              child: Text('Error loading transactions: ${snapshot.error}'),
+            );
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('No transactions found.'));
+          } else {
+            final transactions = snapshot.data!;
+            return ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: 20,
+              itemCount: transactions.length,
               itemBuilder: (context, index) {
-                final bool isCashIn = index % 3 == 0;
-                final String date = '${DateTime.now().subtract(Duration(days: index)).day}/${DateTime.now().subtract(Duration(days: index)).month}/2024';
-                
+                final transaction = transactions[index];
+                final bool isCashIn = transaction.amount >= 0;
+                final String date =
+                    transaction.transactionDate.toLocal().toString().split(
+                      ' ',
+                    )[0]; // Format as YYYY-MM-DD
+
                 return Card(
                   elevation: 2,
                   margin: const EdgeInsets.only(bottom: 12),
@@ -79,16 +79,15 @@ class TransactionsScreen extends StatelessWidget {
                             Row(
                               children: [
                                 CircleAvatar(
-                                  backgroundColor: isCashIn 
-                                      ? Colors.green.withOpacity(0.2)
-                                      : Colors.red.withOpacity(0.2),
+                                  backgroundColor:
+                                      isCashIn
+                                          ? Colors.green.withOpacity(0.2)
+                                          : Colors.red.withOpacity(0.2),
                                   child: Icon(
-                                    isCashIn 
+                                    isCashIn
                                         ? Icons.arrow_downward
                                         : Icons.arrow_upward,
-                                    color: isCashIn 
-                                        ? Colors.green
-                                        : Colors.red,
+                                    color: isCashIn ? Colors.green : Colors.red,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -104,7 +103,7 @@ class TransactionsScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'ID: #${1000 + index}',
+                                      'ID: #${transaction.id}',
                                       style: TextStyle(
                                         color: Colors.grey[600],
                                         fontSize: 14,
@@ -118,7 +117,8 @@ class TransactionsScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  isCashIn ? '+₹5,000' : '-₹3,000',
+                                  (isCashIn ? '+' : '-') +
+                                      '₹${transaction.amount.abs()}',
                                   style: TextStyle(
                                     color: isCashIn ? Colors.green : Colors.red,
                                     fontWeight: FontWeight.bold,
@@ -142,10 +142,10 @@ class TransactionsScreen extends StatelessWidget {
                   ),
                 );
               },
-            ),
-          ),
-        ],
+            );
+          }
+        },
       ),
     );
   }
-} 
+}

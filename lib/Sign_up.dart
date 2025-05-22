@@ -64,7 +64,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text(
+                const Text(
                   "Sign In...",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
                 ),
@@ -98,9 +98,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Please enter your mobile number';
                               }
-                              if (!RegExp(
-                                r'^\d{10}\$',
-                              ).hasMatch(value.trim())) {
+                              if (!RegExp(r'^\d{10}$').hasMatch(value.trim())) {
                                 return 'Enter a valid 10-digit number';
                               }
                               return null;

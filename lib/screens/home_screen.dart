@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'dashboard_screen.dart';
 import 'transactions_screen.dart';
 import 'profile_screen.dart';
+import '../services/payment_service.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  final PaymentService paymentService;
+
+  const HomeScreen({Key? key, required this.paymentService}) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -12,12 +15,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const TransactionsScreen(),
-    const ProfileScreen(),
-  ];
+
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      DashboardScreen(paymentService: widget.paymentService),
+      TransactionsScreen(paymentService: widget.paymentService),
+      ProfileScreen(paymentService: widget.paymentService),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -49,10 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.receipt_long),
               label: 'Transactions',
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: 'Profile',
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
           ],
           currentIndex: _selectedIndex,
           selectedItemColor: Colors.blueAccent,
@@ -63,4 +69,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-} 
+}
