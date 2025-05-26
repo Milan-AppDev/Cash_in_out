@@ -21,7 +21,9 @@ class _AddEditClientPageState extends State<AddEditClientPage> {
     super.initState();
     nameController = TextEditingController(text: widget.client?.name ?? '');
     phoneController = TextEditingController(text: widget.client?.phone ?? '');
-    addressController = TextEditingController(text: widget.client?.address ?? '');
+    addressController = TextEditingController(
+      text: widget.client?.address ?? '',
+    );
   }
 
   void saveClient() {
@@ -43,8 +45,8 @@ class _AddEditClientPageState extends State<AddEditClientPage> {
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Client' : 'Add Client'),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.teal[700],
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
         elevation: 0.5,
       ),
       body: SingleChildScrollView(
@@ -57,7 +59,12 @@ class _AddEditClientPageState extends State<AddEditClientPage> {
               SizedBox(height: 16),
               buildField('Phone Number', phoneController, TextInputType.phone),
               SizedBox(height: 16),
-              buildField('Address', addressController, TextInputType.streetAddress, maxLines: 3),
+              buildField(
+                'Address',
+                addressController,
+                TextInputType.streetAddress,
+                maxLines: 3,
+              ),
               SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -66,14 +73,20 @@ class _AddEditClientPageState extends State<AddEditClientPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.teal,
                     padding: EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: Text(
                     isEditing ? 'Update Client' : 'Add Client',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white,),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              )
+              ),
             ],
           ),
         ),
@@ -81,8 +94,12 @@ class _AddEditClientPageState extends State<AddEditClientPage> {
     );
   }
 
-  Widget buildField(String label, TextEditingController controller, TextInputType type,
-      {int maxLines = 1}) {
+  Widget buildField(
+    String label,
+    TextEditingController controller,
+    TextInputType type, {
+    int maxLines = 1,
+  }) {
     return TextFormField(
       controller: controller,
       keyboardType: type,
@@ -92,4 +109,3 @@ class _AddEditClientPageState extends State<AddEditClientPage> {
     );
   }
 }
- 

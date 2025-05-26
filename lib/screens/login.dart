@@ -1,43 +1,39 @@
-import 'dart:convert';
-
+import 'package:cash_in_out/screens/Sign_up.dart';
 import 'package:cash_in_out/screens/home_screen.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'login.dart';
 
-class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  State<SignUpScreen> createState() => _SignUpScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _SignUpScreenState extends State<SignUpScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
   bool _isLoading = false;
-  bool _isPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
+
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _signUp() async {
+  void _login() async {
     if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isLoading = true);
       final username = _usernameController.text.trim();
       final password = _passwordController.text;
+
       try {
         final ip = '192.168.217.211';
         final response = await http.post(
-          Uri.parse('http://$ip/backend/signup.php'),
+          Uri.parse('http://$ip/backend/login.php'),
           body: {'username': username, 'password': password},
         );
 
@@ -47,47 +43,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
           final responseData = json.decode(response.body);
 
           if (responseData['success'] == true) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Account created for $username')),
-            );
-
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Logged in as $username')));
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const HomeScreen()),
             );
           } else {
-            // Show error from server
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(responseData['message'] ?? 'Registration failed'),
+                content: Text(responseData['message'] ?? 'Login failed'),
               ),
             );
           }
         } else {
-          // Handle non-200 status code
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Server error. Please try again later.'),
-            ),
+            const SnackBar(content: Text('Server error. Try again later.')),
           );
         }
       } catch (e) {
         setState(() => _isLoading = false);
-        print('Error during sign up: ${e.toString()}');
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-        // Future.delayed(const Duration(seconds: 2), () {
-        //   setState(() => _isLoading = false);
-        //   ScaffoldMessenger.of(context).showSnackBar(
-        //     SnackBar(content: Text('Account created for $username')),
-        //   );
-
-        //   Navigator.pushReplacement(
-        //     context,
-        //     MaterialPageRoute(builder: (context) => const LoginScreen()),
-        //   );
-        // });
       }
     }
   }
@@ -97,6 +76,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return SafeArea(
       child: Scaffold(
         backgroundColor: Colors.grey[100],
+        // appBar: AppBar(
+        //   backgroundColor: Colors.teal,
+        //   title: const Text(
+        //     'Login',
+        //     style: TextStyle(
+        //       color: Colors.white,
+        //       fontSize: 24,
+        //       fontWeight: FontWeight.bold,
+        //     ),
+        //   ),
+        //   centerTitle: true,
+        // ),
         body: Center(
           child: SingleChildScrollView(
             child: Column(
@@ -111,9 +102,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  "Create Account",
+                SizedBox(height: 24),
+                Text(
+                  "Welcome Back!",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
                 ),
                 const SizedBox(height: 24),
@@ -140,99 +131,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
-                                return 'Please enter a username';
+                                return 'Please enter your username';
                               }
-                              final RegExp usernameRegex = RegExp(
-                                r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]+$',
-                              );
-                              if (!usernameRegex.hasMatch(value)) {
-                                return 'Username must contain both letters and numbers';
-                              }
-
                               return null;
                             },
                           ),
                           const SizedBox(height: 20),
                           TextFormField(
                             controller: _passwordController,
-                            obscureText: !_isPasswordVisible,
+                            obscureText: true,
                             decoration: InputDecoration(
                               labelText: 'Password',
                               prefixIcon: const Icon(Icons.lock),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              helperText:
-                                  'Must contain uppercase, lowercase, number and special character',
-                              helperMaxLines: 2,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _isPasswordVisible
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _isPasswordVisible = !_isPasswordVisible;
-                                  });
-                                },
-                              ),
                             ),
                             validator: (value) {
-                              print('Password length: ${value?.length}');
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Please enter a password';
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
                               }
-                              value = value.trim();
                               if (value.length < 8) {
                                 return 'Password must be at least 8 characters';
-                              }
-                              if (!value.contains(RegExp(r'[A-Z]'))) {
-                                return 'Password must contain at least one uppercase letter';
-                              }
-                              if (!value.contains(RegExp(r'[a-z]'))) {
-                                return 'Password must contain at least one lowercase letter';
-                              }
-
-                              if (!value.contains(RegExp(r'[0-9]'))) {
-                                return 'Password must contain at least one number';
-                              }
-                              if (!value.contains(
-                                RegExp(r'[-!@#$%^&*(),.?":{}|<>]'),
-                              )) {
-                                return 'Password must contain at least one special character';
-                              }
-
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                          TextFormField(
-                            controller: _confirmPasswordController,
-                            obscureText: !_isConfirmPasswordVisible,
-                            decoration: InputDecoration(
-                              labelText: 'Confirm Password',
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _isConfirmPasswordVisible
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _isConfirmPasswordVisible =
-                                        !_isConfirmPasswordVisible;
-                                  });
-                                },
-                              ),
-                            ),
-                            validator: (value) {
-                              if (value != _passwordController.text) {
-                                return 'Passwords do not match';
                               }
                               return null;
                             },
@@ -250,7 +170,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              onPressed: _isLoading ? null : _signUp,
+                              onPressed: _isLoading ? null : _login,
                               child:
                                   _isLoading
                                       ? const SizedBox(
@@ -265,7 +185,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                         ),
                                       )
                                       : const Text(
-                                        'Sign Up',
+                                        'Login',
                                         style: TextStyle(
                                           fontSize: 16,
                                           color: Colors.white,
@@ -278,7 +198,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Text(
-                                "Already have an account?",
+                                "Don't have an account?",
                                 style: TextStyle(
                                   color: Colors.black54,
                                   fontSize: 14,
@@ -286,15 +206,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                               TextButton(
                                 onPressed: () {
-                                  Navigator.pushReplacement(
+                                  // Navigate to registration screen
+                                  Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const LoginScreen(),
+                                      builder:
+                                          (context) => const SignUpScreen(),
                                     ),
                                   );
                                 },
                                 child: const Text(
-                                  'Login',
+                                  'Sign Up',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,

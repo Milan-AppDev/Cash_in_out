@@ -19,7 +19,7 @@ class _OtpScreenState extends State<OtpScreen> {
       height: 60,
       textStyle: const TextStyle(fontSize: 22, color: Colors.black),
       decoration: BoxDecoration(
-        color: Colors.blueAccent.shade100,
+        color: Colors.teal.shade100, // Change this color to your preference
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.transparent),
       ),
@@ -27,7 +27,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.teal,
         title: const Text(
           'OTP',
           style: TextStyle(
@@ -73,7 +73,9 @@ class _OtpScreenState extends State<OtpScreen> {
                 defaultPinTheme: defaultPinTheme,
                 focusedPinTheme: defaultPinTheme.copyWith(
                   decoration: defaultPinTheme.decoration!.copyWith(
-                    border: Border.all(color: Colors.blueAccent),
+                    color:
+                        Colors.teal.shade50, // Lighter background when focused
+                    border: Border.all(color: Colors.teal.shade700, width: 2),
                   ),
                 ),
                 onCompleted: (pin) => debugPrint(pin),
@@ -98,7 +100,7 @@ class _OtpScreenState extends State<OtpScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    backgroundColor: Colors.blueAccent,
+                    backgroundColor: Colors.teal,
                   ),
                   onPressed: () {
                     Navigator.pushReplacement(

@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Cash In-Out',
       theme: ThemeData(
-        primarySwatch: Colors.teal,
+        primarySwatch: Colors.teal, 
         scaffoldBackgroundColor: Colors.grey[100],
         appBarTheme: AppBarTheme(
           backgroundColor: Colors.teal[700],
