@@ -1,11 +1,9 @@
 import 'dart:async';
-
-import 'package:cash_in_out/Sign_up.dart';
+import 'package:cash_in_out/screens/login.dart';
 import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
-
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -13,15 +11,17 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   @override
-
-  void initState(){
+  void initState() {
     super.initState();
 
-      Timer(Duration(seconds: 3),(){
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignUpScreen()));
-      });
-
+    Timer(Duration(seconds: 3), () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen()),
+      );
+    });
   }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -39,26 +39,25 @@ class _SplashScreenState extends State<SplashScreen> {
           centerTitle: true,
           elevation: 0,
         ),
-      
-      
-      body: Center(
-        child: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 60,
-              backgroundColor: Colors.blue[100],
-              child: Icon(
-                Icons.phone_android,
-                size: 64,
-                color: Colors.blueAccent,
-              ),
-            )
-          ],
+
+        body: Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 60,
+                  backgroundColor: Colors.blue[100],
+                  child: Icon(
+                    Icons.phone_android,
+                    size: 64,
+                    color: Colors.blueAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        ),
-      ),
       ),
     );
   }
