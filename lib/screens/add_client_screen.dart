@@ -32,7 +32,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
       try {
         final ip = '10.0.2.2'; // For Android emulator
         // final ip = '192.168.1.x'; // For physical device - replace with your IP
-        
+
         final requestData = {
           'name': _nameController.text.trim(),
           'phone': _phoneController.text.trim(),
@@ -42,16 +42,20 @@ class _AddClientScreenState extends State<AddClientScreen> {
         print('Sending request to: http://$ip/backend/clients.php');
         print('Request data: $requestData');
 
-        final response = await http.post(
-          Uri.parse('http://$ip/backend/clients.php'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(requestData),
-        ).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            throw TimeoutException('The connection has timed out, Please try again!');
-          },
-        );
+        final response = await http
+            .post(
+              Uri.parse('http://$ip/backend/clients.php'),
+              headers: {'Content-Type': 'application/json'},
+              body: json.encode(requestData),
+            )
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                throw TimeoutException(
+                  'The connection has timed out, Please try again!',
+                );
+              },
+            );
 
         print('Response status code: ${response.statusCode}');
         print('Response body: ${response.body}');
@@ -79,7 +83,9 @@ class _AddClientScreenState extends State<AddClientScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Server error: ${response.statusCode}\n${response.body}'),
+                content: Text(
+                  'Server error: ${response.statusCode}\n${response.body}',
+                ),
                 backgroundColor: Colors.red,
               ),
             );
@@ -89,7 +95,9 @@ class _AddClientScreenState extends State<AddClientScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Connection timed out. Please check your internet connection and try again.'),
+              content: Text(
+                'Connection timed out. Please check your internet connection and try again.',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -115,9 +123,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add New Client'),
-      ),
+      appBar: AppBar(title: const Text('Add New Client')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -162,27 +168,6 @@ class _AddClientScreenState extends State<AddClientScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _balanceController,
-                decoration: InputDecoration(
-                  labelText: 'Initial Balance',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: const Icon(Icons.account_balance_wallet),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter initial balance';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
-              ),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isLoading ? null : _addClient,
@@ -194,19 +179,22 @@ class _AddClientScreenState extends State<AddClientScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                child:
+                    _isLoading
+                        ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                        : const Text(
+                          'Add Client',
+                          style: TextStyle(fontSize: 16),
                         ),
-                      )
-                    : const Text(
-                        'Add Client',
-                        style: TextStyle(fontSize: 16),
-                      ),
               ),
             ],
           ),
@@ -214,4 +202,4 @@ class _AddClientScreenState extends State<AddClientScreen> {
       ),
     );
   }
-} 
+}

@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'report_screen.dart';
 import 'profile_screen.dart';
 import 'add_client_screen.dart';
-import 'login.dart';
+// import 'login.dart';
+import 'client_management_screen.dart';
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,12 +18,20 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  final GlobalKey<_HomeContentState> _homeContentKey =
+      GlobalKey<_HomeContentState>();
 
-  final List<Widget> _screens = [
-    const HomeContent(),
-    const ReportScreen(),
-    const ProfileScreen(),
-  ];
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomeContent(key: _homeContentKey),
+      const ReportScreen(),
+      const ProfileScreen(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -30,7 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout() async {
-    // Clear stored login state
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
@@ -62,6 +71,26 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: Colors.teal,
         onTap: _onItemTapped,
       ),
+      floatingActionButton:
+          _selectedIndex == 0
+              ? FloatingActionButton(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AddClientScreen(),
+                    ),
+                  );
+                  if (result == true) {
+                    _homeContentKey.currentState?.refreshClients();
+                  }
+                },
+
+                tooltip: 'Add Client',
+                child: const Icon(Icons.add),
+              )
+              : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
@@ -81,224 +110,109 @@ class _HomeContentState extends State<HomeContent> {
   @override
   void initState() {
     super.initState();
+    print('HomeContent: initState called');
     fetchClients();
   }
 
   Future<void> fetchClients() async {
+    print('HomeContent: Starting fetchClients');
+    setState(() {
+      isLoading = true;
+      error = '';
+    });
+
     try {
-      final ip = '10.0.2.2'; // For Android emulator
-      // final ip = '192.168.1.x'; // For physical device - replace with your IP
+      print('HomeContent: Making HTTP request');
       final response = await http.get(
-        Uri.parse('http://$ip/backend/clients.php'),
+        Uri.parse('http://10.0.2.2/backend/clients.php'),
       );
+      print('HomeContent: Response status code: ${response.statusCode}');
+      print('HomeContent: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success']) {
+        print('HomeContent: Decoded data: $data');
+
+        if (data['success'] == true) {
           setState(() {
-            clients = List<Map<String, dynamic>>.from(data['data']);
+            clients = List<Map<String, dynamic>>.from(data['clients']);
             isLoading = false;
           });
+          print(
+            'HomeContent: Clients loaded successfully. Count: ${clients.length}',
+          );
         } else {
           setState(() {
-            error = data['message'];
+            error = data['message'] ?? 'Failed to load clients';
             isLoading = false;
           });
+          print('HomeContent: Error from backend: $error');
         }
       } else {
         setState(() {
-          error = 'No clients';
+          error = 'Failed to load clients';
           isLoading = false;
         });
+        print('HomeContent: HTTP error: ${response.statusCode}');
       }
     } catch (e) {
       setState(() {
-        error = e.toString();
+        error = 'Error: $e';
         isLoading = false;
       });
+      print('HomeContent: Exception caught: $e');
     }
   }
 
-  Future<void> deleteClient(int id) async {
-    try {
-      final ip = '10.0.2.2'; // For Android emulator
-      // final ip = '192.168.1.x'; // For physical device - replace with your IP
-      final response = await http.delete(
-        Uri.parse('http://$ip/backend/clients.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'id': id}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Client deleted successfully')),
-          );
-          fetchClients(); // Refresh the list
-        } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(data['message'])));
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-    }
+  Future<void> refreshClients() async {
+    await fetchClients();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Clients',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AddClientScreen(),
-                    ),
-                  );
-                  if (result == true) {
-                    fetchClients(); // Refresh the list if a new client was added
-                  }
-                },
-                icon: Padding(
-                  padding: const EdgeInsets.only(left: 10),
-                  child: const Icon(Icons.add),
-                ),
-                label: Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: const Text('Add'),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (isLoading)
-          const Expanded(child: Center(child: CircularProgressIndicator()))
-        else if (error.isNotEmpty)
-          Expanded(
-            child: Center(
-              child: Text(error, style: const TextStyle(color: Colors.red)),
-            ),
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: clients.length,
-              itemBuilder: (context, index) {
-                final client = clients[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    title: Text(
-                      client['name'],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+    print(
+      'HomeContent: Building widget. isLoading: $isLoading, error: $error, clients count: ${clients.length}',
+    );
+    return Scaffold(
+      body:
+          isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : error.isNotEmpty
+              ? Center(child: Text(error))
+              : clients.isEmpty
+              ? const Center(child: Text('No clients found'))
+              : ListView.builder(
+                itemCount: clients.length,
+                itemBuilder: (context, index) {
+                  final client = clients[index];
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) =>
+                                  ClientManagementScreen(client: client),
+                        ),
+                      ).then((_) => fetchClients());
+                    },
+                    child: Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: ListTile(
+                        title: Text(client['name'] ?? ''),
+                        subtitle: Text(client['phone'] ?? ''),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [Text('₹${client['balance'] ?? 0}')],
+                        ),
                       ),
                     ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        Text(
-                          'Phone: ${client['phone']}',
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Balance: ₹${client['balance']}',
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
-                    trailing: PopupMenuButton(
-                      itemBuilder:
-                          (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('Edit'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('Delete'),
-                                ],
-                              ),
-                            ),
-                          ],
-                      onSelected: (value) {
-                        if (value == 'delete') {
-                          showDialog(
-                            context: context,
-                            builder:
-                                (context) => AlertDialog(
-                                  title: const Text('Delete Client'),
-                                  content: const Text(
-                                    'Are you sure you want to delete this client?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        deleteClient(client['id']);
-                                      },
-                                      child: const Text(
-                                        'Delete',
-                                        style: TextStyle(color: Colors.red),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                          );
-                        }
-                      },
-                    ),
-                    onTap: () {
-                      // Navigate to client details
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
+                  );
+                },
+              ),
     );
   }
 }
