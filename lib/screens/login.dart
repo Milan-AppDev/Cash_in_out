@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final ip = '10.0.2.2'; // For Android emulator
         // final ip = '192.168.1.x';  // For physical device - replace with your IP
         final response = await http.post(
-          Uri.parse('http://$ip/backend/login.php'),
+          Uri.parse('http://$ip/backend_new/login.php'),
           headers: <String, String>{
             'Content-Type': 'application/json; charset=UTF-8',
           },
@@ -73,6 +73,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (response.statusCode == 200) {
           final responseData = json.decode(response.body);
+          print(
+            'Login: Backend response data: $responseData',
+          ); // Log backend response
 
           if (responseData['success'] == true) {
             // Save login state and user info
@@ -81,6 +84,13 @@ class _LoginScreenState extends State<LoginScreen> {
             await prefs.setString('username', username);
             if (responseData['user_id'] != null) {
               await prefs.setInt('userId', responseData['user_id']);
+              print(
+                'Login: Saved userId: ${responseData['user_id']}',
+              ); // Log saved user ID
+            } else {
+              print(
+                'Login: Backend response missing or null user_id',
+              ); // Log if user_id is missing
             }
 
             if (mounted) {
@@ -130,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 CircleAvatar(
                   radius: 60,
-                  backgroundColor: Colors.teal.withOpacity(0.1),
+                  backgroundColor: Colors.blue[900],
                   child: Image.asset(
                     'assets/animations/coin.gif',
                     width: 90,
@@ -198,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             width: double.infinity,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.teal,
+                                backgroundColor: Colors.blue[900],
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
@@ -251,12 +261,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   );
                                 },
-                                child: const Text(
+                                child: Text(
                                   'Sign Up',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.teal,
+                                    color: Colors.blue[900],
                                   ),
                                 ),
                               ),

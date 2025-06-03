@@ -4,6 +4,7 @@ import 'package:cash_in_out/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'login.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -37,11 +38,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       try {
         // Use 10.0.2.2 for Android emulator (points to host machine's localhost)
         // Use your computer's IP address (e.g., 192.168.1.x) for physical devices
-        final ip = '10.0.2.2';  // For Android emulator
+        final ip = '10.0.2.2'; // For Android emulator
         // final ip = '192.168.1.x';  // For physical device - replace with your IP
-        
+
         final response = await http.post(
-          Uri.parse('http://$ip/backend/signup.php'),
+          Uri.parse('http://$ip/backend_new/signup.php'),
           headers: <String, String>{
             'Content-Type': 'application/json; charset=UTF-8',
           },
@@ -54,23 +55,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
         setState(() => _isLoading = false);
 
         if (response.statusCode == 200) {
-          final responseData = json.decode(response.body);
+          final data = json.decode(response.body);
+          print('Signup Response Data: $data');
 
-          if (responseData['success'] == true) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Account created for $username')),
-            );
+          if (data['success'] == true) {
+            // Save login state and user info after successful signup
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('isLoggedIn', true);
+            await prefs.setString('username', _usernameController.text);
+            if (data['user_id'] != null) {
+              await prefs.setInt('userId', data['user_id']);
+              print('Signup: Saved userId: ${data['user_id']}');
+            }
 
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Signup successful!')),
+              );
+              // Navigate directly to home screen after successful signup
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            }
           } else {
             // Show error from server
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(responseData['message'] ?? 'Registration failed'),
-              ),
+              SnackBar(content: Text(data['message'] ?? 'Registration failed')),
             );
           }
         } else {
@@ -87,17 +98,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-        // Future.delayed(const Duration(seconds: 2), () {
-        //   setState(() => _isLoading = false);
-        //   ScaffoldMessenger.of(context).showSnackBar(
-        //     SnackBar(content: Text('Account created for $username')),
-        //   );
-
-        //   Navigator.pushReplacement(
-        //     context,
-        //     MaterialPageRoute(builder: (context) => const LoginScreen()),
-        //   );
-        // });
       }
     }
   }
@@ -113,7 +113,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               children: [
                 CircleAvatar(
                   radius: 60,
-                  backgroundColor: Colors.teal.withOpacity(0.1),
+                  backgroundColor: Colors.blue[900],
                   child: Image.asset(
                     'assets/animations/coin.gif',
                     width: 90,
@@ -252,7 +252,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             width: double.infinity,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.teal,
+                                backgroundColor: Colors.blue[900],
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
@@ -303,12 +303,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     ),
                                   );
                                 },
-                                child: const Text(
-                                  'Login',
+                                child: Text(
+                                  'Sign UP',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.teal,
+                                    color: Colors.blue[900],
                                   ),
                                 ),
                               ),

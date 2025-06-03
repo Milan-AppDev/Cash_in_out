@@ -41,7 +41,7 @@ class _SplashScreenState extends State<SplashScreen> {
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.blueAccent,
+                color: Colors.blue[900],
               ),
             ),
             SizedBox(height: 10),
@@ -50,7 +50,6 @@ class _SplashScreenState extends State<SplashScreen> {
               style: TextStyle(fontSize: 16, color: Colors.grey[700]),
             ),
             SizedBox(height: 30),
-            // CircularProgressIndicator(color: Colors.blueAccent),
           ],
         ),
       ),

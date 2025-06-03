@@ -1,7 +1,9 @@
+import 'package:cash_in_out/screens/add_transaction_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ClientManagementScreen extends StatefulWidget {
   final Map<String, dynamic> client;
@@ -20,27 +22,47 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   List<Map<String, dynamic>> _transactions = [];
   double _totalGot = 0;
   double _totalGiven = 0;
+  int? userId;
+
+  late TextEditingController _nameController;
+  late TextEditingController _phoneController;
+  bool _isEditingClient = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchTransactions();
+    _nameController = TextEditingController(text: widget.client['name']);
+    _phoneController = TextEditingController(text: widget.client['phone']);
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userId = prefs.getInt('userId');
+    });
+    if (userId != null) {
+      _fetchTransactions();
+    }
   }
 
   @override
   void dispose() {
     _amountController.dispose();
     _descriptionController.dispose();
+    _nameController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchTransactions() async {
+    if (userId == null) return;
+
     setState(() => _isLoading = true);
     try {
-      final ip = '10.0.2.2';
       final response = await http.get(
         Uri.parse(
-          'http://$ip/backend/transactions.php?client_id=${widget.client['id']}',
+          'http://10.0.2.2/backend_new/transactions.php?client_id=${widget.client['id']}&user_id=$userId',
         ),
       );
 
@@ -57,7 +79,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching transactions: ${e.toString()}')),
+        SnackBar(content: Text('Error fetching transactions: $e')),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -76,111 +98,93 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     }
   }
 
-  Future<void> _addTransaction(String type) async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() => _isLoading = true);
-      try {
-        final ip = '10.0.2.2';
-        final response = await http.post(
-          Uri.parse('http://$ip/backend/transactions.php'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({
-            'client_id': widget.client['id'],
-            'amount': double.parse(_amountController.text),
-            'description': _descriptionController.text,
-            'type': type,
-          }),
-        );
+  Future<void> _deleteTransaction(int transactionId) async {
+    if (userId == null) return;
 
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data['success']) {
-            _amountController.clear();
-            _descriptionController.clear();
-            await _fetchTransactions();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Transaction added successfully')),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Failed to add transaction'),
-              ),
-            );
-          }
+    try {
+      final response = await http.delete(
+        Uri.parse('http://10.0.2.2/backend_new/transactions.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'id': transactionId, 'user_id': userId}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success']) {
+          await _fetchTransactions();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Transaction deleted successfully')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['message'] ?? 'Failed to delete transaction'),
+            ),
+          );
         }
-      } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-      } finally {
-        setState(() => _isLoading = false);
       }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
-  void _showAddTransactionDialog(String type) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text(
-              type == 'got' ? 'Add Money Received' : 'Add Money Given',
+  Future<void> _updateClient() async {
+    if (userId == null) return;
+
+    if (_nameController.text.isEmpty || _phoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name and phone cannot be empty')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.put(
+        Uri.parse('http://10.0.2.2/backend_new/clients.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'id': widget.client['id'],
+          'user_id': userId,
+          'name': _nameController.text,
+          'phone': _phoneController.text,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success']) {
+          setState(() {
+            _isEditingClient = false;
+            // Update the client data in the widget to reflect changes immediately
+            widget.client['name'] = _nameController.text;
+            widget.client['phone'] = _phoneController.text;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Client updated successfully')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['message'] ?? 'Failed to update client'),
             ),
-            content: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: _amountController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Amount',
-                      prefixIcon: Icon(Icons.currency_rupee),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter an amount';
-                      }
-                      if (double.tryParse(value) == null) {
-                        return 'Please enter a valid amount';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      prefixIcon: Icon(Icons.description),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a description';
-                      }
-                      return null;
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _addTransaction(type);
-                },
-                child: const Text('Add'),
-              ),
-            ],
-          ),
-    );
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update client')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating client: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -191,53 +195,113 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.client['name']),
-        actions: [IconButton(icon: const Icon(Icons.edit), onPressed: () {})],
+        actions: [
+          IconButton(
+            icon: Icon(_isEditingClient ? Icons.close : Icons.edit),
+            onPressed: () {
+              setState(() {
+                _isEditingClient = !_isEditingClient;
+              });
+              // If exiting edit mode without saving, reset controllers (optional)
+              if (!_isEditingClient) {
+                _nameController.text = widget.client['name'];
+                _phoneController.text = widget.client['phone'];
+              }
+            },
+          ),
+          if (_isEditingClient) // Show Save button only in edit mode
+            IconButton(icon: const Icon(Icons.save), onPressed: _updateClient),
+        ],
       ),
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
               : Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    color: Colors.teal,
-                    child: Column(
-                      children: [
-                        Text(
-                          'Current Balance',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          currencyFormat.format(balance),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildBalanceCard(
-                              'You Got',
-                              currencyFormat.format(_totalGot),
-                              Colors.green,
+                  if (_isEditingClient)
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Name',
                             ),
-                            _buildBalanceCard(
-                              'You Gave',
-                              currencyFormat.format(_totalGiven),
-                              Colors.red,
+                          ),
+                          TextFormField(
+                            controller: _phoneController,
+                            decoration: const InputDecoration(
+                              labelText: 'Phone',
                             ),
-                          ],
-                        ),
-                      ],
+                            keyboardType: TextInputType.phone,
+                          ),
+                          const SizedBox(height: 16),
+                          // Save button is in AppBar now
+                        ],
+                      ),
+                    ) // Show client details when not editing
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      color: Colors.blue,
+                      child: Column(
+                        children: [
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(14.0),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    balance > 0
+                                        ? 'You Will Get'
+                                        : balance < 0
+                                        ? 'You Will Give'
+                                        : 'Settled Up',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                      fontSize: 20,
+                                    ),
+                                  ),
+                                  Text(
+                                    currencyFormat.format(balance.abs()),
+                                    style: TextStyle(
+                                      color:
+                                          balance > 0
+                                              ? Colors.green
+                                              : balance < 0
+                                              ? Colors.red
+                                              : Colors.black,
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildBalanceCard(
+                                'You will get',
+                                currencyFormat.format(_totalGot),
+                                Colors.green,
+                              ),
+                              _buildBalanceCard(
+                                'You will give',
+                                currencyFormat.format(_totalGiven),
+                                Colors.red,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                   Expanded(
                     child: ListView.builder(
                       itemCount: _transactions.length,
@@ -248,7 +312,6 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                           transaction['amount'].toString(),
                         );
                         final date = DateTime.parse(transaction['date']);
-
                         return Card(
                           margin: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -267,14 +330,25 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                             ),
                             title: Text(transaction['description']),
                             subtitle: Text(
-                              DateFormat('MMM dd, yyyy').format(date),
+                              DateFormat('MMM d, y h:mm a').format(date),
                             ),
-                            trailing: Text(
-                              '${isGot ? '+' : '-'}${currencyFormat.format(amount)}',
-                              style: TextStyle(
-                                color: isGot ? Colors.green : Colors.red,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${isGot ? '+' : '-'}${currencyFormat.format(amount)}',
+                                  style: TextStyle(
+                                    color: isGot ? Colors.green : Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  onPressed:
+                                      () =>
+                                          _deleteTransaction(transaction['id']),
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -284,31 +358,48 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                 ],
               ),
       floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          SizedBox(width: 26),
-          TextButton(
-            onPressed: () => _showAddTransactionDialog('got'),
-            child: Container(
-              padding: EdgeInsets.symmetric(vertical: 14, horizontal: 44),
-              decoration: BoxDecoration(
-                color: Colors.green,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.add, color: Colors.white, size: 24),
-            ),
+          FloatingActionButton(
+            heroTag: 'got',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) => AddTransactionScreen(
+                        clientId: widget.client['id'],
+                        transactionType: 'got',
+                      ),
+                ),
+              );
+              if (result == true) {
+                _fetchTransactions(); // Refresh after adding transaction
+              }
+            },
+            backgroundColor: Colors.green,
+            child: const Icon(Icons.add),
           ),
           const SizedBox(width: 16),
-          TextButton(
-            onPressed: () => _showAddTransactionDialog('give'),
-            child: Container(
-              padding: EdgeInsets.symmetric(vertical: 14, horizontal: 44),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.remove, color: Colors.white, size: 24),
-            ),
+          FloatingActionButton(
+            heroTag: 'given',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) => AddTransactionScreen(
+                        clientId: widget.client['id'],
+                        transactionType: 'given',
+                      ),
+                ),
+              );
+              if (result == true) {
+                _fetchTransactions(); // Refresh after adding transaction
+              }
+            },
+            backgroundColor: Colors.red,
+            child: const Icon(Icons.remove),
           ),
         ],
       ),
@@ -316,31 +407,26 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   }
 
   Widget _buildBalanceCard(String title, String amount, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 14,
-            ),
+    return Expanded(
+      child: Card(
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Text(title, style: TextStyle(color: color, fontSize: 16)),
+              const SizedBox(height: 8),
+              Text(
+                amount,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            amount,
-            style: TextStyle(
-              color: color,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
 
@@ -15,10 +14,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Cash In-Out',
       theme: ThemeData(
-        primarySwatch: Colors.teal, 
+        primarySwatch: Colors.blue,
         scaffoldBackgroundColor: Colors.grey[100],
         appBarTheme: AppBarTheme(
-          backgroundColor: Colors.teal[700],
+          backgroundColor: Colors.blue[900],
           elevation: 0,
           centerTitle: true,
           titleTextStyle: const TextStyle(
@@ -29,7 +28,7 @@ class MyApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal[700],
+            backgroundColor: Colors.blue[900],
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
