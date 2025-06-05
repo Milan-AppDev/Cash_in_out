@@ -8,6 +8,7 @@ import 'add_client_screen.dart';
 // import 'login.dart';
 import 'client_management_screen.dart';
 import 'package:intl/intl.dart';
+import '../utils/backend_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +17,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   final GlobalKey<_HomeContentState> _homeContentKey =
       GlobalKey<_HomeContentState>();
@@ -80,12 +81,16 @@ class HomeContent extends StatefulWidget {
 
 class _HomeContentState extends State<HomeContent> {
   List<Map<String, dynamic>> clients = [];
+  List<Map<String, dynamic>> _filteredClients = [];
   bool isLoading = true;
   String error = '';
   int? userId;
   double totalBalance = 0.0;
   double totalGot = 0.0;
   double totalGiven = 0.0;
+
+  String _searchQuery = '';
+  String? _sortOption;
 
   @override
   void initState() {
@@ -127,7 +132,7 @@ class _HomeContentState extends State<HomeContent> {
     try {
       print('HomeContent: Making HTTP request');
       final response = await http.get(
-        Uri.parse('http://10.0.2.2/backend_new/clients.php?user_id=$userId'),
+        Uri.parse('${BackendConfig.baseUrl}/clients.php?user_id=$userId'),
       );
       print('HomeContent: Response status code: ${response.statusCode}');
       print('HomeContent: Response body: ${response.body}');
@@ -145,6 +150,7 @@ class _HomeContentState extends State<HomeContent> {
             totalGiven = double.tryParse(data['total_given'].toString()) ?? 0.0;
             isLoading = false;
           });
+          _applyFilterAndSort();
           print(
             'HomeContent: Clients loaded successfully. Count: ${clients.length}',
           );
@@ -207,6 +213,51 @@ class _HomeContentState extends State<HomeContent> {
     }
   }
 
+  void _applyFilterAndSort() {
+    List<Map<String, dynamic>> tempList = List.from(clients);
+
+    // Apply filter
+    if (_searchQuery.isNotEmpty) {
+      tempList =
+          tempList.where((client) {
+            final name = client['name']?.toString().toLowerCase() ?? '';
+            final phone = client['phone']?.toString().toLowerCase() ?? '';
+            final query = _searchQuery.toLowerCase();
+            return name.contains(query) || phone.contains(query);
+          }).toList();
+    }
+
+    // Apply sort
+    if (_sortOption != null) {
+      tempList.sort((a, b) {
+        switch (_sortOption) {
+          case 'name_asc':
+            return (a['name'] ?? '').compareTo(b['name'] ?? '');
+          case 'name_desc':
+            return (b['name'] ?? '').compareTo(a['name'] ?? '');
+          case 'balance_asc':
+            final balanceA =
+                double.tryParse(a['balance']?.toString() ?? '0.0') ?? 0.0;
+            final balanceB =
+                double.tryParse(b['balance']?.toString() ?? '0.0') ?? 0.0;
+            return balanceA.compareTo(balanceB);
+          case 'balance_desc':
+            final balanceA =
+                double.tryParse(a['balance']?.toString() ?? '0.0') ?? 0.0;
+            final balanceB =
+                double.tryParse(b['balance']?.toString() ?? '0.0') ?? 0.0;
+            return balanceB.compareTo(balanceA);
+          default:
+            return 0;
+        }
+      });
+    }
+
+    setState(() {
+      _filteredClients = tempList;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     print(
@@ -215,170 +266,258 @@ class _HomeContentState extends State<HomeContent> {
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
     return Scaffold(
-      body:
-          isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : error.isNotEmpty
-              ? Center(child: Text(error))
-              : Column(
-                children: [
-                  Card(
-                    color: Colors.blue[900],
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Card(
-                                margin: const EdgeInsets.all(16.0),
-                                color: Colors.white,
-                                elevation: 4,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        'Total Balance',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                      Text(
-                                        currencyFormat.format(totalBalance),
-                                        style: TextStyle(
-                                          fontSize: 30,
-                                          fontWeight: FontWeight.bold,
-                                          color:
-                                              totalBalance >= 0
-                                                  ? Colors.greenAccent
-                                                  : Colors.redAccent,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+      body: Column(
+        children: [
+          // Total Balance Card
+          Container(
+            color: Colors.blue[900],
+            child: Column(
+              children: [
+                Card(
+                  margin: EdgeInsets.all(16),
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Balance',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
                             ),
-                          ],
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            right: 16.0,
-                            left: 16.0,
-                            bottom: 8.0,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildBalanceSummaryCard(
-                                'You Will Get',
-                                totalGot,
-                                Colors.green,
-                              ),
-                              _buildBalanceSummaryCard(
-                                'You Will give',
-                                totalGiven,
-                                Colors.red,
-                              ),
-                            ],
+                          const SizedBox(height: 8),
+                          Text(
+                            currencyFormat.format(totalBalance),
+                            style: TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  totalBalance >= 0
+                                      ? Colors.greenAccent
+                                      : Colors.redAccent,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                  Expanded(
-                    child:
-                        clients.isEmpty
-                            ? const Center(child: Text('No clients found'))
-                            : ListView.builder(
-                              itemCount: clients.length,
-                              itemBuilder: (context, index) {
-                                final client = clients[index];
-                                return GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder:
-                                            (context) => ClientManagementScreen(
-                                              client: client,
-                                            ),
-                                      ),
-                                    ).then((_) {
-                                      print(
-                                        'HomeContent: Returned from ClientManagementScreen. Refreshing clients...',
-                                      );
-                                      fetchClients();
-                                    });
-                                  },
-                                  child: Card(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                    child: ListTile(
-                                      title: Text(client['name'] ?? ''),
-                                      subtitle: Text(client['phone'] ?? ''),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text('₹${client['balance'] ?? 0}'),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete),
-                                            onPressed:
-                                                () =>
-                                                    deleteClient(client['id']),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    right: 16.0,
+                    left: 16.0,
+                    bottom: 8.0,
                   ),
-
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AddClientScreen(),
-                        ),
-                      ).then((_) => fetchClients());
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildBalanceSummaryCard(
+                        'You Will Get',
+                        totalGot,
+                        Colors.green,
+                      ),
+                      _buildBalanceSummaryCard(
+                        'You Will give',
+                        totalGiven,
+                        Colors.red,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Search and Sort Bar
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search clients...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                      _applyFilterAndSort();
                     },
-                    child: Card(
-                      margin: EdgeInsets.symmetric(
-                        horizontal: 140,
-                        vertical: 10,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Sort Options Pop-up Menu
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.sort), // Sort icon
+                  onSelected: (String value) {
+                    setState(() {
+                      _sortOption = value;
+                    });
+                    _applyFilterAndSort();
+                  },
+                  itemBuilder: (BuildContext context) {
+                    return [
+                      const PopupMenuItem<String>(
+                        value: 'name_asc',
+                        child: Text('Name (A-Z)'),
                       ),
-                      color: Colors.blue[900],
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.person, color: Colors.white),
-                            const SizedBox(width: 10),
-                            Text(
-                              "Add Client",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                      const PopupMenuItem<String>(
+                        value: 'name_desc',
+                        child: Text('Name (Z-A)'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'balance_asc',
+                        child: Text('Balance (Low to High)'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'balance_desc',
+                        child: Text('Balance (High to Low)'),
+                      ),
+                    ];
+                  },
+                ),
+              ],
+            ),
+          ),
+          // Existing client list
+          Expanded(
+            child:
+                isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _filteredClients.isEmpty
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.people_outline,
+                            size: 64,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No clients found',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Add your first client to get started',
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    )
+                    : ListView.builder(
+                      itemCount: _filteredClients.length,
+                      itemBuilder: (context, index) {
+                        final client = _filteredClients[index];
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+            context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) =>
+                                        ClientManagementScreen(client: client),
+                              ),
+                            ).then((_) {
+                              print(
+                                'HomeContent: Returned from ClientManagementScreen. Refreshing clients...',
+                              );
+                              fetchClients();
+                            });
+                          },
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: ListTile(
+                              title: Text(
+                                client['name'] ?? '',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                              subtitle: Text(client['phone'] ?? ''),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('₹${client['balance'] ?? 0}'),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    onPressed: () => deleteClient(client['id']),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        );
+                      },
+                    ),
+          ),
+
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+              context,
+                MaterialPageRoute(
+                  builder: (context) => const AddClientScreen(),
+                ),
+              ).then((_) => fetchClients());
+            },
+            child: Card(
+              margin: EdgeInsets.symmetric(horizontal: 140, vertical: 10),
+              color: Colors.blue[900],
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.person, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Add Client",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/backend_config.dart';
 
 class AddClientScreen extends StatefulWidget {
   const AddClientScreen({super.key});
@@ -54,7 +55,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
 
       try {
         final response = await http.post(
-          Uri.parse('http://10.0.2.2/backend_new/clients.php'),
+          Uri.parse('${BackendConfig.baseUrl}/clients.php'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode({
             'name': _nameController.text,

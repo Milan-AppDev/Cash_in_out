@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/backend_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,7 +31,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final username = prefs.getString('username');
 
     if (isLoggedIn && username != null) {
-      // Navigate to home screen if already logged in
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -54,12 +54,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final password = _passwordController.text;
 
       try {
-        // Use 10.0.2.2 for Android emulator (points to host machine's localhost)
-        // Use your computer's IP address (e.g., 192.168.1.x) for physical devices
-        final ip = '10.0.2.2'; // For Android emulator
-        // final ip = '192.168.1.x';  // For physical device - replace with your IP
         final response = await http.post(
-          Uri.parse('http://$ip/backend_new/login.php'),
+          Uri.parse('${BackendConfig.baseUrl}/login.php'),
           headers: <String, String>{
             'Content-Type': 'application/json; charset=UTF-8',
           },
@@ -139,8 +135,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 CircleAvatar(
+                  backgroundColor: Colors.white,
                   radius: 60,
-                  backgroundColor: Colors.blue[900],
                   child: Image.asset(
                     'assets/animations/coin.gif',
                     width: 90,

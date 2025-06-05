@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import '../utils/backend_config.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final int clientId;
@@ -58,7 +59,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       try {
         final response = await http.post(
-          Uri.parse('http://10.0.2.2/backend_new/transactions.php'),
+          Uri.parse('${BackendConfig.baseUrl}/transactions.php'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode({
             'client_id': widget.clientId,

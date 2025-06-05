@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cash_in_out/screens/client_report_screen.dart';
+import '../utils/backend_config.dart';
 
 class ClientManagementScreen extends StatefulWidget {
   final Map<String, dynamic> client;
@@ -61,9 +63,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await http.get(
-        Uri.parse(
-          'http://10.0.2.2/backend_new/transactions.php?client_id=${widget.client['id']}&user_id=$userId',
-        ),
+        Uri.parse('${BackendConfig.baseUrl}/transactions.php?client_id=${widget.client['id']}&user_id=$userId'),
       );
 
       if (response.statusCode == 200) {
@@ -102,10 +102,9 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     if (userId == null) return;
 
     try {
-      final response = await http.delete(
-        Uri.parse('http://10.0.2.2/backend_new/transactions.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'id': transactionId, 'user_id': userId}),
+      final response = await http.post(
+        Uri.parse('${BackendConfig.baseUrl}/delete_transaction.php'),
+        body: { 'transaction_id': transactionId.toString() },
       );
 
       if (response.statusCode == 200) {
@@ -144,7 +143,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
 
     try {
       final response = await http.put(
-        Uri.parse('http://10.0.2.2/backend_new/clients.php'),
+        Uri.parse('${BackendConfig.baseUrl}/clients.php'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'id': widget.client['id'],
@@ -194,10 +193,14 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Text(widget.client['name']),
         actions: [
           IconButton(
-            icon: Icon(_isEditingClient ? Icons.close : Icons.edit),
+            icon: Icon(
+              _isEditingClient ? Icons.close : Icons.edit,
+              color: Colors.white,
+            ),
             onPressed: () {
               setState(() {
                 _isEditingClient = !_isEditingClient;
@@ -210,7 +213,10 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
             },
           ),
           if (_isEditingClient) // Show Save button only in edit mode
-            IconButton(icon: const Icon(Icons.save), onPressed: _updateClient),
+            IconButton(
+              icon: const Icon(Icons.save, color: Colors.white),
+              onPressed: _updateClient,
+            ),
         ],
       ),
       body:
@@ -244,7 +250,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                   else
                     Container(
                       padding: const EdgeInsets.all(16),
-                      color: Colors.blue,
+                      color: Colors.blue[900],
                       child: Column(
                         children: [
                           Card(
@@ -283,21 +289,73 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildBalanceCard(
-                                'You will get',
-                                currencyFormat.format(_totalGot),
-                                Colors.green,
+                          const SizedBox(height: 10),
+                          // Action buttons row
+                          Card(
+                            color: Colors.white,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      icon: Icons.receipt_long,
+                                      label: 'Report',
+                                      color: Colors.blue,
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (context) => ClientReportScreen(
+                                                  clientId: widget.client['id'],
+                                                  clientName:
+                                                      widget.client['name'],
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      icon: Icons.radar_sharp,
+                                      label: 'WhatsApp',
+                                      color: Colors.green,
+                                      onTap: () {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'WhatsApp sharing coming soon',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      icon: Icons.sms,
+                                      label: 'SMS',
+                                      color: Colors.orange,
+                                      onTap: () {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'SMS feature coming soon',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
-                              _buildBalanceCard(
-                                'You will give',
-                                currencyFormat.format(_totalGiven),
-                                Colors.red,
-                              ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
@@ -307,61 +365,18 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                       itemCount: _transactions.length,
                       itemBuilder: (context, index) {
                         final transaction = _transactions[index];
-                        final isGot = transaction['type'] == 'got';
-                        final amount = double.parse(
-                          transaction['amount'].toString(),
-                        );
-                        final date = DateTime.parse(transaction['date']);
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  isGot ? Colors.green : Colors.red,
-                              child: Icon(
-                                isGot
-                                    ? Icons.arrow_downward
-                                    : Icons.arrow_upward,
-                                color: Colors.white,
-                              ),
-                            ),
-                            title: Text(transaction['description']),
-                            subtitle: Text(
-                              DateFormat('MMM d, y h:mm a').format(date),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '${isGot ? '+' : '-'}${currencyFormat.format(amount)}',
-                                  style: TextStyle(
-                                    color: isGot ? Colors.green : Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  onPressed:
-                                      () =>
-                                          _deleteTransaction(transaction['id']),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
+                        return _buildTransactionItem(transaction);
                       },
                     ),
                   ),
                 ],
               ),
       floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          FloatingActionButton(
-            heroTag: 'got',
+          SizedBox(width: 28),
+          TextButton(
+            // heroTag: 'got',
             onPressed: () async {
               final result = await Navigator.push(
                 context,
@@ -377,12 +392,29 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                 _fetchTransactions(); // Refresh after adding transaction
               }
             },
-            backgroundColor: Colors.green,
-            child: const Icon(Icons.add),
+
+            child: Card(
+              color: Colors.green,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 40.0,
+                  vertical: 16,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add, color: Colors.white),
+                    const Text(
+                      '  You Got',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 16),
-          FloatingActionButton(
-            heroTag: 'given',
+          const SizedBox(width: 10),
+          TextButton(
+            // heroTag: 'given',
             onPressed: () async {
               final result = await Navigator.push(
                 context,
@@ -398,34 +430,131 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                 _fetchTransactions(); // Refresh after adding transaction
               }
             },
-            backgroundColor: Colors.red,
-            child: const Icon(Icons.remove),
+
+            child: Card(
+              color: Colors.red,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 40.0,
+                  vertical: 16,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.remove, color: Colors.white),
+                    const Text(
+                      '  You Gave',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBalanceCard(String title, String amount, Color color) {
-    return Expanded(
-      child: Card(
-        color: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Text(title, style: TextStyle(color: color, fontSize: 16)),
-              const SizedBox(height: 8),
-              Text(
-                amount,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionItem(Map<String, dynamic> transaction) {
+    final isGot = transaction['type'] == 'got';
+    final amount = double.parse(transaction['amount'].toString());
+    final date = DateTime.parse(transaction['date']);
+    final formattedDate = DateFormat('MMM d, y').format(date);
+    final formattedTime = DateFormat('h:mm a').format(date);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color:
+            isGot ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color:
+              isGot
+                  ? Colors.green.withOpacity(0.3)
+                  : Colors.red.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // Left side - Date and Time
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formattedDate,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  formattedTime,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+              ],
+            ),
+            const Spacer(),
+            // Right side - Amount and Type
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  isGot ? 'You will get' : 'You will give',
+                  style: TextStyle(
+                    color: isGot ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '₹${amount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    color: isGot ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
