@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/client.dart';
 import 'add_edit_client_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ClientListPage extends StatefulWidget {
   @override
@@ -9,23 +11,109 @@ class ClientListPage extends StatefulWidget {
 
 class _ClientListPageState extends State<ClientListPage> {
   List<Client> clients = [];
+  Future<void> fetchClientsFromBackend() async {
+    final ip = '192.168.156.251';
+    final response = await http.get(
+      Uri.parse('http://$ip/backend/clients.php'),
+    );
 
-  void addClient(Client client) {
-    setState(() {
-      clients.add(client);
-    });
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        setState(() {
+          clients = List<Client>.from(
+            data['data'].map((c) => Client.fromJson(c)),
+          );
+        });
+      }
+    } else {
+      // show error
+    }
   }
 
-  void editClient(int index, Client client) {
-    setState(() {
-      clients[index] = client;
-    });
+  @override
+  void initState() {
+    super.initState();
+    fetchClientsFromBackend();
   }
 
-  void deleteClient(int index) {
-    setState(() {
-      clients.removeAt(index);
-    });
+  void addClient(Client client) async {
+    final ip = '192.168.156.251';
+    final url = Uri.parse('http://$ip/backend/clients.php');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(client.toJson()),
+      );
+
+      print("Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final contentType = response.headers['content-type'];
+        if (contentType != null && contentType.contains('application/json')) {
+          final data = json.decode(response.body);
+          if (data['success']) {
+            setState(() {
+              clients.add(
+                Client(
+                  id: data['id'],
+                  name: client.name,
+                  phone: client.phone,
+                  address: client.address,
+                ),
+              );
+            });
+          } else {
+            print("Add failed: ${data['message']}");
+          }
+        } else {
+          print("Invalid JSON response:\n${response.body}");
+        }
+      } else {
+        print("Server error: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Exception during addClient: $e");
+    }
+  }
+
+  void editClient(int index, Client client) async {
+    final ip = '192.168.156.251';
+    final url = Uri.parse('http://$ip/backend/clients.php');
+
+    final response = await http.put(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(client.toJson()),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        setState(() {
+          clients[index] = client;
+        });
+      }
+    }
+  }
+
+  void deleteClient(int index) async {
+    final clientId = clients[index].id;
+    final ip = '192.168.156.251';
+    final url = Uri.parse('http://$ip/backend/clients.php?id=$clientId');
+
+    final response = await http.delete(url);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        setState(() {
+          clients.removeAt(index);
+        });
+      }
+    }
   }
 
   void navigateToAddClient() async {
