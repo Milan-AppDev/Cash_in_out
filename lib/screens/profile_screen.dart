@@ -3,9 +3,17 @@ import '../services/payment_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   final PaymentService paymentService;
+  final String userName;
+  final String userPhone;
+  final int userId;
 
-  const ProfileScreen({Key? key, required this.paymentService})
-    : super(key: key);
+  const ProfileScreen({
+    Key? key,
+    required this.paymentService,
+    required this.userName,
+    required this.userPhone,
+    required this.userId,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -38,13 +46,13 @@ class ProfileScreen extends StatelessWidget {
                     child: Icon(Icons.person, size: 50, color: Colors.white),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'John Doe',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  Text(
+                    userName,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'ID: #12345',
+                    'ID: #$userId',
                     style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                   ),
                 ],
@@ -64,19 +72,19 @@ class ProfileScreen extends StatelessWidget {
                       _buildProfileItem(
                         icon: Icons.phone,
                         title: 'Phone Number',
-                        value: '+91 98765 43210',
+                        value: userPhone,
                       ),
                       const Divider(),
                       _buildProfileItem(
                         icon: Icons.email,
                         title: 'Email',
-                        value: 'john.doe@example.com',
+                        value: '-',
                       ),
                       const Divider(),
                       _buildProfileItem(
                         icon: Icons.location_on,
                         title: 'Address',
-                        value: '123 Main Street, City',
+                        value: '-',
                       ),
                     ],
                   ),

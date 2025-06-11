@@ -1,5 +1,8 @@
 <?php
-header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+header('Content-Type: application/json');
 include 'db_config.php';
 
 // Get POST data
@@ -29,6 +32,9 @@ if (
 } else {
     echo json_encode(["success" => false, "message" => "Invalid input"]);
 }
+
+// Add this SQL to ensure the users table has a phone column
+$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)");
 
 $conn->close();
 ?>

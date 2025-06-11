@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/payment.dart';
-import '../models/installment.dart';
 import '../models/transaction.dart';
 
 class PaymentService {
@@ -10,146 +9,95 @@ class PaymentService {
   PaymentService({required this.baseUrl});
 
   // Create a new payment
-  Future<Payment> createPayment(Payment payment) async {
+  Future<bool> createPayment(Payment payment) async {
     try {
       final response = await http.post(
-        Uri.parse("$baseUrl/payments"),
+        Uri.parse("$baseUrl/add_payment.php"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payment.toJson()),
       );
-
-      if (response.statusCode == 201) {
-        return Payment.fromJson(jsonDecode(response.body));
+      final data = jsonDecode(response.body);
+      if (data['success']) {
+        return true;
       } else {
-        throw Exception('Failed to create payment');
+        throw Exception(data['message'] ?? 'Failed to create payment');
       }
     } catch (e) {
       throw Exception('Error creating payment: $e');
     }
   }
 
-  // Get all payments
-  Future<List<Payment>> getPayments() async {
+  // Get all payments for a user
+  Future<List<Payment>> getPayments(int userId) async {
     try {
-      final response = await http.get(Uri.parse("$baseUrl/payments"));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Payment.fromJson(json)).toList();
+      final response = await http.get(
+        Uri.parse("$baseUrl/get_payments.php?user_id=$userId"),
+      );
+      final data = jsonDecode(response.body);
+      if (data['success']) {
+        final List<dynamic> paymentsJson = data['payments'];
+        return paymentsJson.map((json) => Payment.fromJson(json)).toList();
       } else {
-        throw Exception('Failed to load payments');
+        throw Exception(data['message'] ?? 'Failed to load payments');
       }
     } catch (e) {
       throw Exception('Error loading payments: $e');
     }
   }
 
-  // Get payment by ID
-  Future<Payment> getPaymentById(String id) async {
-    try {
-      final response = await http.get(Uri.parse("$baseUrl/payments/$id"));
-
-      if (response.statusCode == 200) {
-        return Payment.fromJson(jsonDecode(response.body));
-      } else {
-        throw Exception('Failed to load payment');
-      }
-    } catch (e) {
-      throw Exception('Error loading payment: $e');
-    }
-  }
-
-  // Add installment to payment
-  Future<Installment> addInstallment(Installment installment) async {
+  // Edit a payment
+  Future<bool> editPayment(Payment payment) async {
     try {
       final response = await http.post(
-        Uri.parse("$baseUrl/installments"),
+        Uri.parse("$baseUrl/edit_payment.php"),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(installment.toJson()),
+        body: jsonEncode(payment.toJson()),
       );
-
-      if (response.statusCode == 201) {
-        return Installment.fromJson(jsonDecode(response.body));
+      final data = jsonDecode(response.body);
+      if (data['success']) {
+        return true;
       } else {
-        throw Exception('Failed to add installment');
+        throw Exception(data['message'] ?? 'Failed to edit payment');
       }
     } catch (e) {
-      throw Exception('Error adding installment: $e');
+      throw Exception('Error editing payment: $e');
     }
   }
 
-  // Record a transaction
-  Future<Transaction> recordTransaction(Transaction transaction) async {
+  // Delete a payment
+  Future<bool> deletePayment(int paymentId) async {
     try {
       final response = await http.post(
-        Uri.parse("$baseUrl/transactions"),
+        Uri.parse("$baseUrl/delete_payment.php"),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(transaction.toJson()),
+        body: jsonEncode({'payment_id': paymentId}),
       );
-
-      if (response.statusCode == 201) {
-        return Transaction.fromJson(jsonDecode(response.body));
+      final data = jsonDecode(response.body);
+      if (data['success']) {
+        return true;
       } else {
-        throw Exception('Failed to record transaction');
+        throw Exception(data['message'] ?? 'Failed to delete payment');
       }
     } catch (e) {
-      throw Exception('Error recording transaction: $e');
+      throw Exception('Error deleting payment: $e');
     }
   }
 
-  // Get transactions by payment ID
-  Future<List<Transaction>> getTransactionsByPaymentId(String paymentId) async {
+  // Get all transactions (for admin or all users)
+  Future<List<Transaction>> getAllTransactions() async {
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl/transactions/payment/$paymentId"),
+        Uri.parse("$baseUrl/get_all_transactions.php"),
       );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Transaction.fromJson(json)).toList();
+      final data = jsonDecode(response.body);
+      if (data['success']) {
+        final List<dynamic> transactionsJson = data['transactions'];
+        return transactionsJson.map((json) => Transaction.fromJson(json)).toList();
       } else {
-        throw Exception('Failed to load transactions');
+        throw Exception(data['message'] ?? 'Failed to load transactions');
       }
     } catch (e) {
       throw Exception('Error loading transactions: $e');
-    }
-  }
-
-  // New method to get all transactions
-  Future<List<Transaction>> getAllTransactions() async {
-    try {
-      final response = await http.get(Uri.parse("$baseUrl/transactions"));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Transaction.fromJson(json)).toList();
-      } else {
-        throw Exception('Failed to load all transactions');
-      }
-    } catch (e) {
-      throw Exception('Error loading all transactions: $e');
-    }
-  }
-
-  // Update payment status
-  Future<Payment> updatePaymentStatus(
-    String paymentId,
-    PaymentStatus status,
-  ) async {
-    try {
-      final response = await http.patch(
-        Uri.parse("$baseUrl/payments/$paymentId/status"),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'status': status.toString()}),
-      );
-
-      if (response.statusCode == 200) {
-        return Payment.fromJson(jsonDecode(response.body));
-      } else {
-        throw Exception('Failed to update payment status');
-      }
-    } catch (e) {
-      throw Exception('Error updating payment status: $e');
     }
   }
 }

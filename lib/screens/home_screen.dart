@@ -6,8 +6,17 @@ import '../services/payment_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final PaymentService paymentService;
+  final String userName;
+  final String userPhone;
+  final int userId;
 
-  const HomeScreen({Key? key, required this.paymentService}) : super(key: key);
+  const HomeScreen({
+    Key? key,
+    required this.paymentService,
+    required this.userName,
+    required this.userPhone,
+    required this.userId,
+  }) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -24,7 +33,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _screens = [
       DashboardScreen(paymentService: widget.paymentService),
       TransactionsScreen(paymentService: widget.paymentService),
-      ProfileScreen(paymentService: widget.paymentService),
+      ProfileScreen(
+        paymentService: widget.paymentService,
+        userName: widget.userName,
+        userPhone: widget.userPhone,
+        userId: widget.userId,
+      ),
     ];
   }
 

@@ -40,6 +40,10 @@ dependencies:
   provider: ^6.1.2
   shared_preferences: ^2.2.2
 
+# Add splash and icon generator dependencies
+  flutter_native_splash: ^2.3.10
+  flutter_launcher_icons: ^0.13.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -92,3 +96,22 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  assets:
+    - assets/images/
+
+# flutter_native_splash configuration
+flutter_native_splash:
+  color: "#2196F3"
+  image: assets/images/splash_logo.png
+  android: true
+  ios: true
+  web: true
+
+# flutter_launcher_icons configuration
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#2196F3"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
