@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'login.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../utils/backend_config.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -37,8 +36,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final username = _usernameController.text.trim();
       final password = _passwordController.text;
       try {
+        // Use 10.0.2.2 for Android emulator (points to host machine's localhost)
+        // Use your computer's IP address (e.g., 192.168.1.x) for physical devices
+        final ip = '10.0.2.2'; // For Android emulator
+        // final ip = '192.168.1.x';  // For physical device - replace with your IP
+
         final response = await http.post(
-          Uri.parse('${BackendConfig.baseUrl}/signup.php'),
+          Uri.parse('http://$ip/backend_new/signup.php'),
           headers: <String, String>{
             'Content-Type': 'application/json; charset=UTF-8',
           },

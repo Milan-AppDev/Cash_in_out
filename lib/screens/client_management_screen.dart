@@ -5,7 +5,10 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cash_in_out/screens/client_report_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/backend_config.dart';
+import 'package:cash_in_out/screens/edit_client_screen.dart';
+import 'package:cash_in_out/screens/transaction_detail_screen.dart';
 
 class ClientManagementScreen extends StatefulWidget {
   final Map<String, dynamic> client;
@@ -26,15 +29,9 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   double _totalGiven = 0;
   int? userId;
 
-  late TextEditingController _nameController;
-  late TextEditingController _phoneController;
-  bool _isEditingClient = false;
-
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.client['name']);
-    _phoneController = TextEditingController(text: widget.client['phone']);
     _loadUserId();
   }
 
@@ -52,8 +49,6 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   void dispose() {
     _amountController.dispose();
     _descriptionController.dispose();
-    _nameController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
@@ -63,7 +58,9 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await http.get(
-        Uri.parse('${BackendConfig.baseUrl}/transactions.php?client_id=${widget.client['id']}&user_id=$userId'),
+        Uri.parse(
+          '${BackendConfig.baseUrl}/transactions.php?client_id=${widget.client['id']}&user_id=$userId',
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -104,7 +101,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     try {
       final response = await http.post(
         Uri.parse('${BackendConfig.baseUrl}/delete_transaction.php'),
-        body: { 'transaction_id': transactionId.toString() },
+        body: {'transaction_id': transactionId.toString()},
       );
 
       if (response.statusCode == 200) {
@@ -129,67 +126,148 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     }
   }
 
-  Future<void> _updateClient() async {
-    if (userId == null) return;
-
-    if (_nameController.text.isEmpty || _phoneController.text.isEmpty) {
+  Future<void> _launchWhatsApp(String phoneNumber) async {
+    final whatsappUrl = Uri.parse('https://wa.me/$phoneNumber');
+    if (await canLaunchUrl(whatsappUrl)) {
+      await launchUrl(whatsappUrl);
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Name and phone cannot be empty')),
+        const SnackBar(content: Text('Could not launch WhatsApp')),
       );
-      return;
     }
+  }
 
-    setState(() => _isLoading = true);
-
-    try {
-      final response = await http.put(
-        Uri.parse('${BackendConfig.baseUrl}/clients.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'id': widget.client['id'],
-          'user_id': userId,
-          'name': _nameController.text,
-          'phone': _phoneController.text,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success']) {
-          setState(() {
-            _isEditingClient = false;
-            // Update the client data in the widget to reflect changes immediately
-            widget.client['name'] = _nameController.text;
-            widget.client['phone'] = _phoneController.text;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Client updated successfully')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? 'Failed to update client'),
-            ),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update client')),
-        );
-      }
-    } catch (e) {
+  Future<void> _launchSMS(String phoneNumber) async {
+    final smsUrl = Uri.parse('sms:$phoneNumber');
+    if (await canLaunchUrl(smsUrl)) {
+      await launchUrl(smsUrl);
+    } else {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error updating client: $e')));
-    } finally {
-      setState(() => _isLoading = false);
+      ).showSnackBar(const SnackBar(content: Text('Could not launch SMS')));
     }
+  }
+
+  Widget _buildTransactionItem(Map<String, dynamic> transaction) {
+    final isGot = transaction['type'] == 'got';
+    final amount = double.parse(transaction['amount'].toString());
+    final date = DateTime.parse(transaction['date']);
+    final formattedDate = DateFormat('dd MMM yy').format(date);
+    final formattedTime = DateFormat('h:mm a').format(date);
+    final description = transaction['description']?.toString();
+
+    final runningBalance =
+        transaction['running_balance'] != null
+            ? double.parse(transaction['running_balance'].toString())
+            : null;
+
+    return GestureDetector(
+      onTap: () {
+        final Map<String, dynamic> transactionWithClientName = Map.from(transaction);
+        transactionWithClientName['client_name'] = widget.client['name'];
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TransactionDetailScreen(
+              transaction: transactionWithClientName,
+            ),
+          ),
+        ).then((_) => _fetchTransactions());
+      },
+      child: Card(
+        elevation: 2,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Information Container (Date, Time, Description, Balance)
+            SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '$formattedDate',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
+                      Text(
+                        ' • $formattedTime',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10),
+                  if (description != null && description.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(description, style: TextStyle(fontSize: 14)),
+                  ],
+                ],
+              ),
+            ),
+            // YOU GAVE Container
+            Container(
+              height: 100,
+              width: 100, // Fixed width for 'YOU GAVE' column
+              alignment: Alignment.centerRight,
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4,
+                vertical: 22,
+              ), // Added padding
+              margin: const EdgeInsets.only(
+                left: 8,
+              ), // Spacing from previous container
+              child: Text(
+                isGot ? '' : '₹${amount.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+            // YOU GOT Container
+            Container(
+              height: 100,
+              width: 100, // Fixed width for 'YOU GOT' column
+              alignment: Alignment.centerRight,
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4,
+                vertical: 22,
+              ), // Added padding
+              margin: const EdgeInsets.only(
+                left: 8,
+              ), // Spacing from previous container
+              child: Text(
+                isGot ? '₹${amount.toStringAsFixed(0)}' : '',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final balance = _totalGot - _totalGiven;
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final phoneNumber = widget.client['phone']?.toString() ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -197,26 +275,20 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
         title: Text(widget.client['name']),
         actions: [
           IconButton(
-            icon: Icon(
-              _isEditingClient ? Icons.close : Icons.edit,
-              color: Colors.white,
-            ),
-            onPressed: () {
-              setState(() {
-                _isEditingClient = !_isEditingClient;
-              });
-              // If exiting edit mode without saving, reset controllers (optional)
-              if (!_isEditingClient) {
-                _nameController.text = widget.client['name'];
-                _phoneController.text = widget.client['phone'];
+            icon: const Icon(Icons.edit, color: Colors.white),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EditClientScreen(client: widget.client),
+                ),
+              );
+
+              if (result == true) {
+                _fetchTransactions();
               }
             },
           ),
-          if (_isEditingClient) // Show Save button only in edit mode
-            IconButton(
-              icon: const Icon(Icons.save, color: Colors.white),
-              onPressed: _updateClient,
-            ),
         ],
       ),
       body:
@@ -224,64 +296,228 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
               ? const Center(child: CircularProgressIndicator())
               : Column(
                 children: [
-                  if (_isEditingClient)
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Name',
+                  // Client Details and Balance
+                  Container(
+                    color: Colors.blue[900],
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Card(
+                          color: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8.0,
+                              vertical: 16,
                             ),
-                          ),
-                          TextFormField(
-                            controller: _phoneController,
-                            decoration: const InputDecoration(
-                              labelText: 'Phone',
-                            ),
-                            keyboardType: TextInputType.phone,
-                          ),
-                          const SizedBox(height: 16),
-                          // Save button is in AppBar now
-                        ],
-                      ),
-                    ) // Show client details when not editing
-                  else
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      color: Colors.blue[900],
-                      child: Column(
-                        children: [
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(14.0),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    balance > 0
-                                        ? 'You Will Get'
-                                        : balance < 0
-                                        ? 'You Will Give'
-                                        : 'Settled Up',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Net Balance',
+                                    style: const TextStyle(
                                       color: Colors.black,
                                       fontSize: 20,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
+                                ),
+                                Text(
+                                  currencyFormat.format(balance),
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        balance >= 0
+                                            ? Colors.green
+                                            : Colors.redAccent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Card(
+                          color: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _buildActionButton(
+                                    icon: Icons.receipt_long,
+                                    label: 'Report',
+                                    color: Colors.blue,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) => ClientReportScreen(
+                                                clientId: widget.client['id'],
+                                                clientName:
+                                                    widget.client['name'],
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _buildActionButton(
+                                    icon: Icons.radar_sharp,
+                                    label: 'WhatsApp',
+                                    color: Colors.green,
+                                    onTap: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'WhatsApp sharing coming soon',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _buildActionButton(
+                                    icon: Icons.sms,
+                                    label: 'SMS',
+                                    color: Colors.orange,
+                                    onTap: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'SMS feature coming soon',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Client Transactions Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20.0,
+                      vertical: 8.0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'ENTRIES',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        SizedBox(
+                          width:
+                              240, // Consistent with amount columns in _buildTransactionItem (70+70+40 for delete)
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                width:
+                                    100, // Match the width of 'YOU GAVE' column
+                                alignment: Alignment.centerRight,
+                                child: const Text(
+                                  'YOU GAVE',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width:
+                                    100, // Match the width of 'YOU GOT' column
+                                alignment: Alignment.centerRight,
+                                child: const Text(
+                                  'YOU GOT',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 30),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  // Transaction List
+                  Expanded(
+                    child:
+                        _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : _transactions.isEmpty
+                            ? const Center(
+                              child: Text(
+                                'No transactions found for this client.',
+                              ),
+                            )
+                            : ListView.builder(
+                              itemCount: _transactions.length,
+                              itemBuilder: (context, index) {
+                                final transaction = _transactions[index];
+                                return _buildTransactionItem(transaction);
+                              },
+                            ),
+                  ),
+                  // Add Transaction Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => AddTransactionScreen(
+                                      clientId: widget.client['id'],
+                                      clientName: widget.client['name'],
+                                      transactionType: 'got',
+                                    ),
+                              ),
+                            ).then((_) => _fetchTransactions());
+                          },
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 10,
+                            ),
+                            color: Colors.green[700],
+                            child: const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add, color: Colors.white),
+                                  SizedBox(width: 8),
                                   Text(
-                                    currencyFormat.format(balance.abs()),
+                                    'YOU GOT',
                                     style: TextStyle(
-                                      color:
-                                          balance > 0
-                                              ? Colors.green
-                                              : balance < 0
-                                              ? Colors.red
-                                              : Colors.black,
-                                      fontSize: 32,
+                                      color: Colors.white,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -289,274 +525,89 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          // Action buttons row
-                          Card(
-                            color: Colors.white,
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => AddTransactionScreen(
+                                      clientId: widget.client['id'],
+                                      clientName: widget.client['name'],
+                                      transactionType: 'given',
+                                    ),
+                              ),
+                            ).then((_) => _fetchTransactions());
+                          },
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 10,
+                            ),
+                            color: Colors.red[700],
+                            child: const Padding(
+                              padding: EdgeInsets.all(12),
                               child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Expanded(
-                                    child: _buildActionButton(
-                                      icon: Icons.receipt_long,
-                                      label: 'Report',
-                                      color: Colors.blue,
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder:
-                                                (context) => ClientReportScreen(
-                                                  clientId: widget.client['id'],
-                                                  clientName:
-                                                      widget.client['name'],
-                                                ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _buildActionButton(
-                                      icon: Icons.radar_sharp,
-                                      label: 'WhatsApp',
-                                      color: Colors.green,
-                                      onTap: () {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'WhatsApp sharing coming soon',
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _buildActionButton(
-                                      icon: Icons.sms,
-                                      label: 'SMS',
-                                      color: Colors.orange,
-                                      onTap: () {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'SMS feature coming soon',
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                  Icon(Icons.remove, color: Colors.white),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'YOU GAVE',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _transactions.length,
-                      itemBuilder: (context, index) {
-                        final transaction = _transactions[index];
-                        return _buildTransactionItem(transaction);
-                      },
-                    ),
+                    ],
                   ),
                 ],
               ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+    );
+  }
+}
+
+Widget _buildActionButton({
+  required IconData icon,
+  required String label,
+  required Color color,
+  required VoidCallback onTap,
+}) {
+  return InkWell(
+    onTap: onTap,
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(width: 28),
-          TextButton(
-            // heroTag: 'got',
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (context) => AddTransactionScreen(
-                        clientId: widget.client['id'],
-                        transactionType: 'got',
-                      ),
-                ),
-              );
-              if (result == true) {
-                _fetchTransactions(); // Refresh after adding transaction
-              }
-            },
-
-            child: Card(
-              color: Colors.green,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 40.0,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.add, color: Colors.white),
-                    const Text(
-                      '  You Got',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          TextButton(
-            // heroTag: 'given',
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (context) => AddTransactionScreen(
-                        clientId: widget.client['id'],
-                        transactionType: 'given',
-                      ),
-                ),
-              );
-              if (result == true) {
-                _fetchTransactions(); // Refresh after adding transaction
-              }
-            },
-
-            child: Card(
-              color: Colors.red,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 40.0,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.remove, color: Colors.white),
-                    const Text(
-                      '  You Gave',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTransactionItem(Map<String, dynamic> transaction) {
-    final isGot = transaction['type'] == 'got';
-    final amount = double.parse(transaction['amount'].toString());
-    final date = DateTime.parse(transaction['date']);
-    final formattedDate = DateFormat('MMM d, y').format(date);
-    final formattedTime = DateFormat('h:mm a').format(date);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color:
-            isGot ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color:
-              isGot
-                  ? Colors.green.withOpacity(0.3)
-                  : Colors.red.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            // Left side - Date and Time
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  formattedDate,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  formattedTime,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-              ],
-            ),
-            const Spacer(),
-            // Right side - Amount and Type
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  isGot ? 'You will get' : 'You will give',
-                  style: TextStyle(
-                    color: isGot ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '₹${amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    color: isGot ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }

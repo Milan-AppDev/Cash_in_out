@@ -3,16 +3,13 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
-import 'package:flutter/services.dart'; // Required for ByteData
-import 'package:share_plus/share_plus.dart'; // Import share_plus
-import '../utils/backend_config.dart'; // Import BackendConfig
-
-// import 'package:permission_handler/permission_handler.dart'; // Uncomment if storage permissions are needed
+import 'package:share_plus/share_plus.dart';
+import '../utils/backend_config.dart';
+import 'package:pdf/pdf.dart'; // Import pdf
+import 'package:pdf/widgets.dart' as pw; // Import pdf widgets
+import 'package:printing/printing.dart'; // Import printing
+import 'package:flutter/services.dart'; // Import for Uint8List
 
 class ClientReportScreen extends StatefulWidget {
   final int clientId;
@@ -39,6 +36,7 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
 
   DateTime? _startDate; // State variable for start date
   DateTime? _endDate; // State variable for end date
+  String? _clientPhoneNumber; // New state variable for client's phone number
 
   @override
   void initState() {
@@ -105,6 +103,9 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
                   data['client_total_given']?.toString() ?? '0.0',
                 ) ??
                 0.0;
+            _clientPhoneNumber =
+                data['client_phone']
+                    ?.toString(); // Get client phone number from response
             isLoading = false;
           });
           print(
@@ -328,97 +329,242 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
     }
   }
 
-  // Function to generate the PDF report
-  Future<Uint8List> _generatePdf(PdfPageFormat format) async {
+  Future<Uint8List> generatePdf() async {
     final pdf = pw.Document();
-    final currencyFormatPdf = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-    );
-    final dateFormatPdf = DateFormat('dd MMM yyyy');
+    final fontData = await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
+    final ttf = pw.Font.ttf(fontData);
+
+    final String clientPhoneNumber =
+        _clientPhoneNumber ?? 'N/A'; // Use fetched client phone number
+    final String reportDateRange =
+        '(${_startDate != null ? DateFormat('dd MMM yyyy').format(_startDate!) : ''}${_endDate != null ? ' - ' + DateFormat('dd MMM yyyy').format(_endDate!) : ''})';
+
+    // Calculate opening balance for the report period
+    double openingBalance = 0.0; // Placeholder for now
+
+    // Prepare data for the PDF table and calculate running balance
+    final List<List<String>> tableRows = [];
+    double currentRunningBalance =
+        openingBalance; // Start with the opening balance for the table
+
+    // Add the table header as a separate row for styling control
+    tableRows.add(['Date', 'Details', 'Debit(-)', 'Credit(+)', 'Balance']);
+
+    // Add opening balance as the first entry in the table data for consistency with image
+    tableRows.add([
+      DateFormat(
+        'dd MMM',
+      ).format(_startDate ?? DateTime.now()), // Or a specific date if available
+      'Opening Balance',
+      '',
+      '',
+      '₹ ${openingBalance.toStringAsFixed(2)} Cr', // Assuming opening balance is credit for display
+    ]);
+
+    for (var transaction in _clientTransactions) {
+      final date = DateFormat(
+        'dd MMM',
+      ).format(DateTime.parse(transaction['date']));
+      final details = transaction['description']?.toString() ?? '';
+      final amount = double.parse(transaction['amount'].toString());
+
+      String debit = '';
+      String credit = '';
+      if (transaction['type'] == 'given') {
+        debit = '₹ ${amount.toStringAsFixed(2)}';
+        currentRunningBalance -= amount;
+      } else {
+        credit = '₹ ${amount.toStringAsFixed(2)}';
+        currentRunningBalance += amount;
+      }
+
+      final balanceString =
+          '₹ ${currentRunningBalance.abs().toStringAsFixed(2)} '
+          '${currentRunningBalance >= 0 ? 'Cr' : 'Db'}';
+
+      tableRows.add([date, details, debit, credit, balanceString]);
+    }
+
+    final grandTotalDebit = clientTotalGiven; // Already calculated
+    final grandTotalCredit = clientTotalGot; // Already calculated
+    final grandNetBalance =
+        clientTotalGot - clientTotalGiven; // Already calculated
+
+    // Add Grand Total row
+    tableRows.add([
+      'Grand Total',
+      '',
+      '₹ ${grandTotalDebit.toStringAsFixed(2)}',
+      '₹ ${grandTotalCredit.toStringAsFixed(2)}',
+      '₹ ${grandNetBalance.abs().toStringAsFixed(2)} '
+          '${grandNetBalance >= 0 ? 'Cr' : 'Db'}',
+    ]);
 
     pdf.addPage(
-      pw.Page(
-        pageFormat: format,
-        build: (pw.Context context) {
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.copyWith(
+          marginLeft: 20,
+          marginRight: 20,
+          marginTop: 20,
+          marginBottom: 20,
+        ),
+        header: (context) {
           return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Header
+              pw.Container(
+                color: PdfColors.blue,
+                padding: const pw.EdgeInsets.all(10),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('+917046021424', style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.white)),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.blue,
+                        borderRadius: pw.BorderRadius.circular(3),
+                      ),
+                      child: pw.Text('Khatabook', style: pw.TextStyle(font: ttf, color: PdfColors.white, fontSize: 10)),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 10),
               pw.Center(
                 child: pw.Column(
                   children: [
                     pw.Text(
                       '${widget.clientName} Statement',
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 20,
-                      ),
+                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, font: ttf, color: PdfColors.black),
                     ),
-                    pw.SizedBox(height: 5),
-                    // Assuming phone number is available in the client data, replace with actual data source if different
-                    pw.Text(
-                      'Phone Number: N/A',
-                      style: pw.TextStyle(fontSize: 12),
-                    ), // Placeholder for phone number
-                    pw.SizedBox(height: 5),
-                    pw.Text(
-                      '${_startDate != null ? dateFormatPdf.format(_startDate!) : ''} - ${_endDate != null ? dateFormatPdf.format(_endDate!) : ''}',
-                      style: pw.TextStyle(fontSize: 12),
-                    ),
+                    pw.Text('Phone Number: ${clientPhoneNumber}', style: pw.TextStyle(font: ttf, fontSize: 12, color: PdfColors.black)),
+                    pw.Text(reportDateRange, style: pw.TextStyle(font: ttf, fontSize: 12, color: PdfColors.black)),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 20),
-
-              // Summary Cards
+              pw.SizedBox(height: 15),
+              // Summary Boxes
               pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildPdfSummaryCard(
+                  _buildSummaryBox(
                     'Opening Balance',
-                    currencyFormatPdf.format(0.00),
+                    '₹ ${openingBalance.toStringAsFixed(2)}',
+                    '',
+                    ttf,
+                    '(on ${DateFormat('dd MMM yyyy').format(_startDate ?? DateTime.now())})',
                     PdfColors.black,
-                  ), // Placeholder
-                  _buildPdfSummaryCard(
+                  ),
+                  pw.SizedBox(width: 8),
+                  _buildSummaryBox(
                     'Total Debit(-)',
-                    currencyFormatPdf.format(clientTotalGiven),
-                    PdfColors.red,
-                  ), // Total Given as Debit
-                  _buildPdfSummaryCard(
+                    '₹ ${clientTotalGiven.toStringAsFixed(2)}',
+                    '',
+                    ttf,
+                    '',
+                    PdfColors.black,
+                  ),
+                  pw.SizedBox(width: 8),
+                  _buildSummaryBox(
                     'Total Credit(+)',
-                    currencyFormatPdf.format(clientTotalGot),
-                    PdfColors.green,
-                  ), // Total Got as Credit
-                  _buildPdfSummaryCard(
+                    '₹ ${clientTotalGot.toStringAsFixed(2)}',
+                    '',
+                    ttf,
+                    '',
+                    PdfColors.black,
+                  ),
+                  pw.SizedBox(width: 8),
+                  _buildSummaryBox(
                     'Net Balance',
-                    currencyFormatPdf.format(clientBalance),
-                    clientBalance >= 0 ? PdfColors.green : PdfColors.red,
+                    '₹ ${grandNetBalance.abs().toStringAsFixed(2)}',
+                    grandNetBalance >= 0 ? 'Cr' : 'Db',
+                    ttf,
+                    grandNetBalance >= 0 ? '(${widget.clientName} will get)' : '(${widget.clientName} will give)',
+                    grandNetBalance >= 0 ? PdfColors.green : PdfColors.red, // Keep original colors for Net Balance
                   ),
                 ],
               ),
-              pw.SizedBox(height: 20),
-
-              // Transactions Table
-              pw.Text(
-                'Transactions',
-                style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
+              pw.SizedBox(height: 15),
+              pw.Text('No. of Entries: ${_clientTransactions.length} (All)', style: pw.TextStyle(font: ttf, fontSize: 12, color: PdfColors.black)),
               pw.SizedBox(height: 10),
-              _buildPdfTransactionsTable(
-                currencyFormatPdf,
-              ), // Build transaction table
-              pw.SizedBox(height: 20),
-
-              // Report Generated Timestamp
-              pw.Text(
-                'Report Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}',
-                style: pw.TextStyle(
-                  fontSize: 10,
-                  fontStyle: pw.FontStyle.italic,
+            ],
+          );
+        },
+        build: (context) => [
+          pw.Table.fromTextArray(
+            columnWidths: {
+              0: pw.FlexColumnWidth(1.5), // Date
+              1: pw.FlexColumnWidth(3), // Details
+              2: pw.FlexColumnWidth(2), // Debit
+              3: pw.FlexColumnWidth(2), // Credit
+              4: pw.FlexColumnWidth(2), // Balance
+            },
+            headers: tableRows[0], // Set the first row as headers
+            data: tableRows.sublist(1), // Remaining rows are data
+            headerStyle: pw.TextStyle(
+                fontSize: 9, fontWeight: pw.FontWeight.bold, font: ttf, color: PdfColors.white), // Style for header
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.blue), // Background for header
+            cellStyle: pw.TextStyle(fontSize: 9, font: ttf), // Default cell style
+            cellAlignments: {
+              0: pw.Alignment.centerLeft,
+              1: pw.Alignment.centerLeft,
+              2: pw.Alignment.centerRight,
+              3: pw.Alignment.centerRight,
+              4: pw.Alignment.centerRight,
+            },
+            border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey500),
+            cellDecoration: (index, data, rowNum) {
+              // Apply conditional background color for Debit and Credit columns
+              if (rowNum == data.length - 1) { // Grand Total row
+                return pw.BoxDecoration(
+                  color: PdfColors.grey200,
+                  border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+                );
+              } else if (index == 2 && data.isNotEmpty) { // Debit column
+                return pw.BoxDecoration(
+                  color: PdfColors.red50, // Light red
+                  border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+                );
+              } else if (index == 3 && data.isNotEmpty) { // Credit column
+                return pw.BoxDecoration(
+                  color: PdfColors.green50, // Light green
+                  border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+                );
+              }
+              return pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+              );
+            },
+          ),
+          pw.SizedBox(height: 20),
+        ],
+        footer: (context) {
+          return pw.Column(
+            children: [
+              pw.Divider(color: PdfColors.black), // Divider remains outside blue background
+              pw.Container(
+                color: PdfColors.blue,
+                padding: const pw.EdgeInsets.all(10),
+                child: pw.Column(
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Report Generated: ${DateFormat('hh:mm a | dd MMM yy').format(DateTime.now())}', style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.white)),
+                        pw.Text('Page ${context.pageNumber} of ${context.pagesCount}', style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.white)),
+                      ],
+                    ),
+                    pw.SizedBox(height: 5),
+                    pw.Center(
+                      child: pw.Column(
+                        children: [
+                          pw.Text('Start Using Khatabook Now', style: pw.TextStyle(font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+                          pw.Text('Help: +91-9606800800', style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.white)),
+                          pw.Text('T&C Apply', style: pw.TextStyle(font: ttf, fontSize: 8, color: PdfColors.white)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -430,591 +576,493 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
     return pdf.save();
   }
 
-  // Helper function to build summary cards for PDF
-  pw.Expanded _buildPdfSummaryCard(
+  // Helper function to build summary boxes
+  pw.Widget _buildSummaryBox(
     String title,
-    String amount,
-    PdfColor color,
+    String value,
+    String suffix,
+    pw.Font font,
+    String subText,
+    PdfColor valueColor,
   ) {
     return pw.Expanded(
       child: pw.Container(
         decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: PdfColors.grey300),
+          border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
           borderRadius: pw.BorderRadius.circular(5),
         ),
-        padding: const pw.EdgeInsets.all(10),
-        margin: const pw.EdgeInsets.symmetric(horizontal: 5),
+        padding: const pw.EdgeInsets.all(8),
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
               title,
-              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
-            ),
-            pw.SizedBox(height: 5),
-            pw.Text(
-              amount,
               style: pw.TextStyle(
-                fontSize: 14,
-                fontWeight: pw.FontWeight.bold,
-                color: color,
+                font: font,
+                fontSize: 10,
+                color: PdfColors.grey700,
               ),
             ),
+            pw.SizedBox(height: 5),
+            pw.RichText(
+              text: pw.TextSpan(
+                children: [
+                  pw.TextSpan(
+                    text: value,
+                    style: pw.TextStyle(
+                      font: font,
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
+                      color: valueColor,
+                    ),
+                  ),
+                  if (suffix.isNotEmpty)
+                    pw.TextSpan(
+                      text: ' ' + suffix,
+                      style: pw.TextStyle(
+                        font: font,
+                        fontSize: 10,
+                        color: valueColor,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (subText.isNotEmpty)
+              pw.Text(
+                subText,
+                style: pw.TextStyle(
+                  font: font,
+                  fontSize: 8,
+                  color: PdfColors.grey600,
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  // Helper function to build the transactions table for PDF
-  pw.Table _buildPdfTransactionsTable(NumberFormat currencyFormatPdf) {
-    // Calculate running balance for the PDF table
-    double runningBalance = 0.00; // Starting balance is 0 for the report period
-    List<pw.TableRow> rows = [
-      pw.TableRow(
-        children: [
-          pw.Text('Date', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.Text(
-            'Details',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-          ),
-          pw.Text(
-            'Debit(-)',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            textAlign: pw.TextAlign.right,
-          ),
-          pw.Text(
-            'Credit(+)',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            textAlign: pw.TextAlign.right,
-          ),
-          pw.Text(
-            'Balance',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            textAlign: pw.TextAlign.right,
-          ),
-        ],
+  Future<void> downloadPdf() async {
+    final pdfBytes = await generatePdf();
+    await Printing.layoutPdf(onLayout: (_) => pdfBytes);
+  }
+
+  Future<void> sharePdf() async {
+    final pdfBytes = await generatePdf();
+    await Printing.sharePdf(
+      bytes: pdfBytes,
+      filename:
+          'report_${widget.clientName.replaceAll(" ", "_")}.pdf', // Use widget.clientName
+    );
+  }
+
+  Widget _buildTransactionItem(Map<String, dynamic> transaction) {
+    final isGot = transaction['type'] == 'got';
+    final amount = double.parse(transaction['amount'].toString());
+    final date = DateTime.parse(transaction['date']);
+    final formattedDate = DateFormat('dd MMM yy').format(date);
+    final formattedTime = DateFormat('h:mm a').format(date);
+    final description = transaction['description']?.toString();
+
+    final runningBalance =
+        transaction['running_balance'] != null
+            ? double.parse(transaction['running_balance'].toString())
+            : null;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black),
+        borderRadius: BorderRadius.circular(8),
       ),
-    ];
-
-    for (var transaction in _clientTransactions) {
-      final isGot = transaction['type'] == 'got';
-      final amount = double.parse(transaction['amount'].toString());
-      final date = DateTime.parse(transaction['date']);
-      final formattedDate = DateFormat('dd MMM').format(date);
-
-      if (isGot) {
-        runningBalance += amount;
-      } else {
-        runningBalance -= amount;
-      }
-
-      rows.add(
-        pw.TableRow(
-          children: [
-            pw.Text(formattedDate, style: pw.TextStyle(fontSize: 10)),
-            pw.Text(
-              transaction['description'] ?? '',
-              style: pw.TextStyle(fontSize: 10),
-            ),
-            pw.Text(
-              isGot ? '' : currencyFormatPdf.format(amount),
-              style: pw.TextStyle(fontSize: 10, color: PdfColors.red),
-              textAlign: pw.TextAlign.right,
-            ),
-            pw.Text(
-              isGot ? currencyFormatPdf.format(amount) : '',
-              style: pw.TextStyle(fontSize: 10, color: PdfColors.green),
-              textAlign: pw.TextAlign.right,
-            ),
-            pw.Text(
-              currencyFormatPdf.format(runningBalance),
-              style: pw.TextStyle(fontSize: 10),
-              textAlign: pw.TextAlign.right,
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Grand Total Row
-    rows.add(
-      pw.TableRow(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(
-            'Grand Total',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+          // Information Container (Date, Time, Description, Balance)
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '$formattedDate',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                    Text(
+                      ' • $formattedTime',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 10),
+                if (description != null && description.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(description, style: TextStyle(fontSize: 14)),
+                ],
+              ],
+            ),
           ),
-          pw.Text(''), // Empty cells for details and debit/credit
-          pw.Text(''),
-          pw.Text(''),
-          pw.Text(
-            currencyFormatPdf.format(runningBalance),
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
-            textAlign: pw.TextAlign.right,
+          // YOU GAVE Container
+          Container(
+            height: 100,
+            width: 100, // Fixed width for 'YOU GAVE' column
+            alignment: Alignment.centerRight,
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 22,
+            ), // Added padding
+            margin: const EdgeInsets.only(
+              left: 8,
+            ), // Spacing from previous container
+            child: Text(
+              isGot ? '' : '₹${amount.toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+          ),
+          // YOU GOT Container
+          Container(
+            height: 100,
+            width: 100, // Fixed width for 'YOU GOT' column
+            alignment: Alignment.centerRight,
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 22,
+            ), // Added padding
+            margin: const EdgeInsets.only(
+              left: 8,
+            ), // Spacing from previous container
+            child: Text(
+              isGot ? '₹${amount.toStringAsFixed(0)}' : '',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.green,
+              ),
+            ),
           ),
         ],
       ),
     );
-
-    return pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey300),
-      columnWidths: {
-        0: const pw.FixedColumnWidth(50), // Date
-        1: const pw.FlexColumnWidth(), // Details
-        2: const pw.FixedColumnWidth(60), // Debit
-        3: const pw.FixedColumnWidth(60), // Credit
-        4: const pw.FixedColumnWidth(60), // Balance
-      },
-      children: rows,
-    );
-  }
-
-  // Function to save the PDF to the device
-  Future<void> _saveAndLaunchPdf() async {
-    // Request storage permission if needed (usually not required for app-specific directories)
-    // if (await Permission.storage.request().isGranted) {
-    try {
-      final pdfBytes = await _generatePdf(PdfPageFormat.a4);
-      final dir =
-          await getApplicationDocumentsDirectory(); // Or getExternalStorageDirectory() for shared storage
-      final file = File(
-        '${dir.path}/client_report_${widget.clientId}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf',
-      );
-      await file.writeAsBytes(pdfBytes);
-
-      // Optionally, open the PDF after saving
-      // You can use the `open_file` package for this
-      // await OpenFile.open(file.path);
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Report saved to ${file.path}')));
-
-      print('PDF saved successfully to: ${file.path}');
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save PDF: $e')));
-      print('Error saving PDF: $e');
-    }
-    // } else {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     const SnackBar(content: Text('Storage permission denied')),
-    //   );
-    // }
-  }
-
-  // Function to generate and share the PDF report
-  Future<void> _sharePdfReport() async {
-    setState(() {
-      isLoading = true; // Show loading indicator while sharing
-      error = '';
-    });
-
-    try {
-      final pdfBytes = await _generatePdf(PdfPageFormat.a4);
-      final tempDir = await getTemporaryDirectory(); // Get temporary directory
-      final tempFile = File(
-        '${tempDir.path}/client_report_${widget.clientId}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf',
-      );
-      await tempFile.writeAsBytes(pdfBytes);
-
-      // Use share_plus to share the temporary file
-      await Share.shareXFiles([
-        XFile(tempFile.path),
-      ], text: 'Client Report for ${widget.clientName}');
-
-      // Optional: Delete the temporary file after sharing
-      // await tempFile.delete();
-
-      setState(() {
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        error = 'Failed to share PDF: $e';
-        isLoading = false;
-      });
-      print('Error sharing PDF: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to share PDF: $e')));
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final dateFormat = DateFormat('MMM d, y');
-
     return Scaffold(
       appBar: AppBar(
-        centerTitle: false,
-        title: Text('Report for ${widget.clientName}'),
+        title: Text('Client Report - ${widget.clientName}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Share feature coming soon!')),
+              );
+            },
+          ),
+        ],
       ),
       body:
           isLoading
               ? const Center(child: CircularProgressIndicator())
               : error.isNotEmpty
               ? Center(child: Text(error))
-              : SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Client Balance
-                    Container(
-                      color: Colors.blue[900],
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          right: 16.0,
-                          left: 16.0,
-                          bottom: 8.0,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            Expanded(
-                              child: Card(
-                                color: Colors.white,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    children: [
-                                      const Text(
-                                        'You Will Get',
-                                        style: TextStyle(
-                                          color: Colors.green,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        currencyFormat.format(clientTotalGot),
-                                        style: TextStyle(
-                                          color: Colors.green,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Card(
-                                color: Colors.white,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    children: [
-                                      const Text(
-                                        'You Will Give',
-                                        style: TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        currencyFormat.format(clientTotalGiven),
-                                        style: TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              : Column(
+                // This Column is directly under Scaffold.body, allowing Expanded children
+                children: [
+                  // Client Balance / Summary Cards (Fixed height content)
+                  Container(
+                    color: Colors.blue[900],
+                    padding: const EdgeInsets.only(
+                      right: 16.0,
+                      left: 16.0,
+                      bottom: 8.0,
                     ),
-                    // Here
-                    // Client Transactions Header and Date Pickers
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 8.0,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Transactions',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child: Card(
+                            color: Colors.white,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'You Will Get',
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '₹${clientTotalGot.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        ),
+
+                        Expanded(
+                          child: Card(
+                            color: Colors.white,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'You Will Give',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '₹${clientTotalGiven.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Date Filters
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
                             children: [
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: () => _selectStartDate(context),
-                                  child: Text(
-                                    _startDate == null
-                                        ? 'Select Start Date'
-                                        : 'Start: ${dateFormat.format(_startDate!)}',
-                                  ),
+                              Text(
+                                '${_startDate != null ? DateFormat('dd MMM yy').format(_startDate!) : 'Start Date'}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: () => _selectEndDate(context),
-                                  child: Text(
-                                    _endDate == null
-                                        ? 'Select End Date'
-                                        : 'End: ${dateFormat.format(_endDate!)}',
-                                  ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.calendar_today,
+                                  size: 16,
+                                  color: Colors.blue,
                                 ),
-                              ),
-                              // Pop-up menu for time period selection
-                              PopupMenuButton<String>(
-                                icon: Icon(Icons.filter_list), // Filter icon
-                                onSelected: _handleTimePeriodSelection,
-                                itemBuilder: (BuildContext context) {
-                                  return [
-                                    const PopupMenuItem<String>(
-                                      value: 'all_time',
-                                      child: Text('All time'),
-                                    ),
-                                    const PopupMenuItem<String>(
-                                      value: 'this_month',
-                                      child: Text('This Month'),
-                                    ),
-                                    const PopupMenuItem<String>(
-                                      value: 'today',
-                                      child: Text('Today'),
-                                    ),
-                                    const PopupMenuItem<String>(
-                                      value: 'single_day',
-                                      child: Text('Single Day'),
-                                    ),
-                                    const PopupMenuItem<String>(
-                                      value: 'last_week',
-                                      child: Text('Last week'),
-                                    ),
-                                    const PopupMenuItem<String>(
-                                      value: 'last_month',
-                                      child: Text('Last month'),
-                                    ),
-                                    const PopupMenuItem<String>(
-                                      value: 'date_range',
-                                      child: Text('Date Range'),
-                                    ),
-                                  ];
-                                },
+                                onPressed: () => _selectStartDate(context),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          // Display Client Transactions
-                          _clientTransactions.isEmpty &&
-                                  !isLoading &&
-                                  error.isEmpty
-                              ? Text(
-                                'No transactions found for this client.',
-                                style: TextStyle(
-                                  fontStyle: FontStyle.italic,
-                                  color: Colors.grey[600],
+                        ),
+                        Expanded(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${_endDate != null ? DateFormat('dd MMM yy').format(_endDate!) : 'End Date'}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue,
                                 ),
-                              )
-                              : ListView.builder(
-                                shrinkWrap: true,
-                                physics:
-                                    NeverScrollableScrollPhysics(), // Disable ListView scrolling
-                                itemCount: _clientTransactions.length,
-                                itemBuilder: (context, index) {
-                                  final transaction =
-                                      _clientTransactions[index];
-                                  final isGot = transaction['type'] == 'got';
-                                  final amount = double.parse(
-                                    transaction['amount'].toString(),
-                                  );
-                                  final date = DateTime.parse(
-                                    transaction['date'],
-                                  );
-                                  final formattedDate = DateFormat(
-                                    'MMM d, y',
-                                  ).format(date);
-                                  final formattedTime = DateFormat(
-                                    'h:mm a',
-                                  ).format(date);
-
-                                  return Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                    ),
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          isGot
-                                              ? Colors.green.withOpacity(0.05)
-                                              : Colors.red.withOpacity(0.05),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color:
-                                            isGot
-                                                ? Colors.green.withOpacity(0.2)
-                                                : Colors.red.withOpacity(0.2),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              // No client name needed here as it's a client-specific report
-                                              transaction['client_name'] ??
-                                                  'Unknown Client', // Display client name
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                            Text(
-                                              '₹${amount.toStringAsFixed(2)}',
-                                              style: TextStyle(
-                                                color:
-                                                    isGot
-                                                        ? Colors.green
-                                                        : Colors.red,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                            // Delete button
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.delete_outline,
-                                                color: Colors.grey,
-                                              ),
-                                              onPressed:
-                                                  () => _deleteTransaction(
-                                                    transaction['id'],
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          transaction['description'] ?? '',
-                                          style: TextStyle(
-                                            color: Colors.grey[700],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'Type: ${isGot ? 'You Got' : 'You Gave'}',
-                                              style: TextStyle(
-                                                color:
-                                                    isGot
-                                                        ? Colors.green
-                                                        : Colors.red,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            Text(
-                                              '$formattedDate $formattedTime',
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
                               ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(width: 32),
-          Expanded(
-            child: GestureDetector(
-              onTap: _saveAndLaunchPdf,
-              child: Container(
-                child: Card(
-                  color: Colors.blue[900],
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Icon(Icons.download, color: Colors.white),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.calendar_today,
+                                  size: 16,
+                                  color: Colors.blue,
+                                ),
+                                onPressed: () => _selectEndDate(context),
+                              ),
+                            ],
+                          ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                            "Download",
-                            style: TextStyle(color: Colors.white),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: _handleTimePeriodSelection,
+                          itemBuilder: (BuildContext context) {
+                            return [
+                              const PopupMenuItem(
+                                value: 'all_time',
+                                child: Text('All Time'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'this_month',
+                                child: Text('This Month'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'today',
+                                child: Text('Today'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'last_week',
+                                child: Text('Last Week'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'last_month',
+                                child: Text('Last Month'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'single_day',
+                                child: Text('Single Day'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'date_range',
+                                child: Text('Date Range'),
+                              ),
+                            ];
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  // Transaction Headers
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'ENTRIES',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        SizedBox(
+                          width: 220, // Match the width of the amounts column
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                width:
+                                    90, // Match the width of 'YOU GAVE' column
+                                alignment: Alignment.centerRight,
+                                child: const Text(
+                                  'YOU GAVE',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width:
+                                    90, // Match the width of 'YOU GOT' column
+                                alignment: Alignment.centerRight,
+                                child: const Text(
+                                  'YOU GOT',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(
+                                width: 20,
+                              ), // Space for delete button
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: _sharePdfReport,
-              child: Container(
-                child: Card(
-                  color: Colors.blue[900],
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
+                  const Divider(),
+                  // Transaction List
+                  Expanded(
+                    // Crucial for ListView.builder inside a Column
+                    child:
+                        _clientTransactions.isEmpty
+                            ? const Center(
+                              child: Text(
+                                'No transactions found for this client.',
+                              ),
+                            )
+                            : ListView.builder(
+                              itemCount: _clientTransactions.length,
+                              itemBuilder: (context, index) {
+                                final transaction = _clientTransactions[index];
+                                return _buildTransactionItem(transaction);
+                              },
+                            ),
+                  ),
+                  // PDF Buttons
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Icon(Icons.share, color: Colors.white),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: downloadPdf,
+                            icon: const Icon(
+                              Icons.download,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              'Download PDF',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[800],
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                            "  Share",
-                            style: TextStyle(color: Colors.white),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: sharePdf,
+                            icon: const Icon(Icons.share, color: Colors.white),
+                            label: const Text(
+                              'Share PDF',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[800],
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

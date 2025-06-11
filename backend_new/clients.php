@@ -29,8 +29,16 @@ switch ($method) {
             exit;
         }
 
-        // Get clients for the user
-        $sql_clients = "SELECT * FROM clients WHERE user_id = ?";
+        // Get clients for the user with their last transaction date and balance
+        $sql_clients = "SELECT c.*, 
+                        COALESCE(SUM(CASE WHEN t.type = 'got' THEN t.amount ELSE -t.amount END), 0) AS balance, 
+                        MAX(t.date) AS last_transaction_date
+                      FROM clients c
+                      LEFT JOIN transactions t ON c.id = t.client_id
+                      WHERE c.user_id = ?
+                      GROUP BY c.id
+                      ORDER BY c.name ASC"; // You can adjust the ORDER BY clause as needed
+
         $stmt_clients = $conn->prepare($sql_clients);
         $stmt_clients->bind_param("i", $user_id);
         $stmt_clients->execute();
@@ -42,13 +50,11 @@ switch ($method) {
         }
 
         // Get user's total balance (sum of client balances)
-        $sql_total_balance = "SELECT total_balance FROM users WHERE id = ?";
-        $stmt_total_balance = $conn->prepare($sql_total_balance);
-        $stmt_total_balance->bind_param("i", $user_id);
-        $stmt_total_balance->execute();
-        $result_total_balance = $stmt_total_balance->get_result();
-        $user_data = $result_total_balance->fetch_assoc();
-        $total_balance = $user_data['total_balance'] ?? 0.00;
+        // This sum will now be computed from the clients' fetched balances
+        $total_balance = 0.00;
+        foreach ($clients as $client) {
+            $total_balance += $client['balance'];
+        }
 
         // Get total 'got' and 'given' amounts for the user
         $sql_got_given = "SELECT type, SUM(amount) as total FROM transactions WHERE user_id = ? GROUP BY type";

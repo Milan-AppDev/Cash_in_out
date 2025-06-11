@@ -112,8 +112,11 @@ class _AddClientScreenState extends State<AddClientScreen> {
                 child: Form(
                   key: _formKey,
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      TextFormField(
+                      Column(
+                        children: [
+                          TextFormField(
                         controller: _nameController,
                         decoration: const InputDecoration(
                           labelText: 'Name',
@@ -141,12 +144,14 @@ class _AddClientScreenState extends State<AddClientScreen> {
                           return null;
                         },
                       ),
+                        ],
+                      ),
                       const SizedBox(height: 24),
                       ElevatedButton(
                         onPressed: _addClient,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
+                            horizontal: 130,
                             vertical: 6,
                           ),
                           child: const Text(

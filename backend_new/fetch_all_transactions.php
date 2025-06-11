@@ -145,4 +145,3 @@ if ($clientId > 0) {
 }
 
 echo json_encode($responseData);
-?> 

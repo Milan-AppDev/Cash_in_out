@@ -5,31 +5,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../utils/backend_config.dart';
 
-class AddTransactionScreen extends StatefulWidget {
-  final int clientId;
-  final String transactionType;
-  final String clientName;
+class EditTransactionScreen extends StatefulWidget {
+  final Map<String, dynamic> transaction;
 
-  const AddTransactionScreen({
-    super.key,
-    required this.clientId,
-    required this.transactionType,
-    required this.clientName,
-  });
+  const EditTransactionScreen({super.key, required this.transaction});
 
   @override
-  State<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  State<EditTransactionScreen> createState() => _EditTransactionScreenState();
 }
 
-class _AddTransactionScreenState extends State<AddTransactionScreen> {
+class _EditTransactionScreenState extends State<EditTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _amountController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  late TextEditingController _amountController;
+  late TextEditingController _descriptionController;
   bool _isLoading = false;
   int? userId;
 
-  DateTime _selectedDate = DateTime.now();
-  String? _selectedCategory;
+  late DateTime _selectedDate; // State variable for selected date
+  String? _selectedCategory; // State variable for selected category
   final List<String> _categories = [
     'Food',
     'Transport',
@@ -43,6 +36,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    _amountController = TextEditingController(
+      text: widget.transaction['amount']?.toString(),
+    );
+    _descriptionController = TextEditingController(
+      text: widget.transaction['description']?.toString(),
+    );
+    _selectedDate = DateTime.parse(widget.transaction['date']);
+    _selectedCategory = widget.transaction['category']?.toString();
     _loadUserId();
   }
 
@@ -74,7 +75,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
-  Future<void> _addTransaction() async {
+  Future<void> _updateTransaction() async {
     if (_formKey.currentState?.validate() ?? false) {
       if (userId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -86,15 +87,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       setState(() => _isLoading = true);
 
       try {
-        final response = await http.post(
-          Uri.parse('${BackendConfig.baseUrl}/transactions.php'),
+        final response = await http.put(
+          Uri.parse('${BackendConfig.baseUrl}/transactions.php'), // Assuming PUT for update
           headers: {'Content-Type': 'application/json'},
           body: json.encode({
-            'client_id': widget.clientId,
+            'id': widget.transaction['id'], // Pass transaction ID for update
+            'client_id': widget.transaction['client_id'],
             'user_id': userId,
             'amount': double.parse(_amountController.text),
             'description': _descriptionController.text,
-            'type': widget.transactionType,
+            'type': widget.transaction['type'],
             'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
             'category': _selectedCategory,
           }),
@@ -105,21 +107,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           if (data['success'] == true) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Transaction added successfully')),
+                const SnackBar(
+                  content: Text('Transaction updated successfully'),
+                ),
               );
-              Navigator.pop(context, true);
+              Navigator.pop(context, true); // Return true to indicate success
             }
           } else {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(data['message'] ?? 'Failed to add transaction')),
+                SnackBar(
+                  content:
+                      Text(data['message'] ?? 'Failed to update transaction'),
+                ),
               );
             }
           }
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to add transaction')),
+              const SnackBar(content: Text('Failed to update transaction')),
             );
           }
         }
@@ -139,14 +146,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isGot = widget.transactionType == 'got';
+    final isGot = widget.transaction['type'] == 'got';
     final Color primaryColor = isGot ? Colors.green[700]! : Colors.red[700]!;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: primaryColor,
         title: Text(
-          '${isGot ? 'You Got' : 'You Gave'} ₹',
+          'Edit ${isGot ? 'Money Received' : 'Money Given'}',
         ),
         iconTheme: const IconThemeData(color: Colors.white),
         titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20),
@@ -286,7 +293,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _addTransaction,
+                      onPressed: _updateTransaction, // Call update function
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
@@ -296,11 +303,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         minimumSize: const Size(double.infinity, 50),
                       ),
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20,vertical: 5),
+                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
                         child: Text(
-                          'Done',
+                          'Save Changes',
                         ),
-                      )
+                      ),
                     ),
                   ],
                 ),
