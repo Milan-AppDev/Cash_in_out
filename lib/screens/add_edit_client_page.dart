@@ -105,7 +105,15 @@ class _AddEditClientPageState extends State<AddEditClientPage> {
       controller: controller,
       keyboardType: type,
       maxLines: maxLines,
-      validator: (value) => value!.isEmpty ? 'Please enter $label' : null,
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) return 'Please enter $label';
+
+        if (label == 'Phone Number' && !RegExp(r'^\d{10}$').hasMatch(value)) {
+          return 'Enter a valid 10-digit phone number';
+        }
+
+        return null;
+      },
       decoration: InputDecoration(labelText: label),
     );
   }

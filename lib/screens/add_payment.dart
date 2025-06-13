@@ -88,17 +88,33 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
                 decoration: const InputDecoration(labelText: 'Amount'),
                 keyboardType: TextInputType.number,
                 onSaved: (val) => _amount = double.parse(val!),
-                validator:
-                    (val) => val == null || val.isEmpty ? 'Enter amount' : null,
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'Enter amount';
+                  final num? parsed = num.tryParse(val);
+                  if (parsed == null || parsed <= 0)
+                    return 'Enter a valid amount';
+                  return null;
+                },
               ),
               TextFormField(
                 decoration: const InputDecoration(labelText: 'Tag'),
                 onSaved: (val) => _tag = val ?? '',
+                validator:
+                    (val) =>
+                        val == null || val.trim().isEmpty
+                            ? 'Enter a tag'
+                            : null,
               ),
               TextFormField(
                 decoration: const InputDecoration(labelText: 'Note'),
                 onSaved: (val) => _note = val ?? '',
+                validator:
+                    (val) =>
+                        val == null || val.trim().isEmpty
+                            ? 'Enter a note'
+                            : null,
               ),
+
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Status'),
                 value: _status,
