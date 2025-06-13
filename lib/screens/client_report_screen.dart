@@ -80,10 +80,35 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
     print('ClientReportScreen: Fetching data from URL: $url');
 
     try {
-      final response = await http.get(Uri.parse(url));
+      // Print all request details for debugging
+      print('ClientReportScreen: Making request with headers:');
+      print('URL: $url');
+      print('Method: GET');
+      print('User ID: $userId');
+      print('Client ID: ${widget.clientId}');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Connection': 'keep-alive',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Origin': 'http://192.168.1.7',
+          'Referer': 'http://192.168.1.7/',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+      );
+
+      print('ClientReportScreen: Response status code: ${response.statusCode}');
+      print('ClientReportScreen: Response headers: ${response.headers}');
+      print('ClientReportScreen: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        print('ClientReportScreen: Decoded data: $data');
 
         if (data['success'] == true) {
           setState(() {
@@ -103,9 +128,7 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
                   data['client_total_given']?.toString() ?? '0.0',
                 ) ??
                 0.0;
-            _clientPhoneNumber =
-                data['client_phone']
-                    ?.toString(); // Get client phone number from response
+            _clientPhoneNumber = data['client_phone']?.toString();
             isLoading = false;
           });
           print(
@@ -118,6 +141,15 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
           });
           print('ClientReportScreen: Failed to load data: ${data['message']}');
         }
+      } else if (response.statusCode == 403) {
+        setState(() {
+          error =
+              'Access forbidden. Please check your authentication and try again.';
+          isLoading = false;
+        });
+        print('ClientReportScreen: Access forbidden (403)');
+        print('ClientReportScreen: Full response: ${response.body}');
+        print('ClientReportScreen: Response headers: ${response.headers}');
       } else {
         setState(() {
           error =
@@ -128,13 +160,20 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
           'ClientReportScreen: Failed to load data: Status code ${response.statusCode}',
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       setState(() {
         error = 'Error fetching report data: $e';
         isLoading = false;
       });
       print('ClientReportScreen: Error fetching report data: $e');
+      print('ClientReportScreen: Stack trace: $stackTrace');
     }
+  }
+
+  // Helper function to get authentication token
+  Future<String> _getAuthToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('auth_token') ?? '';
   }
 
   // Function to delete a transaction
@@ -400,6 +439,9 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
           '${grandNetBalance >= 0 ? 'Cr' : 'Db'}',
     ]);
 
+    // Footer content
+    final String footerText = 'Generated on ${DateFormat('dd MMM yyyy').format(DateTime.now())}';
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4.copyWith(
@@ -417,80 +459,150 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('+917046021424', style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.white)),
+                    pw.Text(
+                      '+917046021424',
+                      style: pw.TextStyle(
+                        font: ttf,
+                        fontSize: 10,
+                        color: PdfColors.white,
+                      ),
+                    ),
                     pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
                       decoration: pw.BoxDecoration(
                         color: PdfColors.blue,
                         borderRadius: pw.BorderRadius.circular(3),
                       ),
-                      child: pw.Text('Khatabook', style: pw.TextStyle(font: ttf, color: PdfColors.white, fontSize: 10)),
+                      child: pw.Text(
+                        'Khatabook',
+                        style: pw.TextStyle(
+                          font: ttf,
+                          color: PdfColors.white,
+                          fontSize: 10,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 10),
-              pw.Center(
-                child: pw.Column(
+              if (context.pageNumber == 1) ...[
+                pw.SizedBox(height: 10),
+                pw.Center(
+                  child: pw.Column(
+                    children: [
+                      pw.Text(
+                        '${widget.clientName} Statement',
+                        style: pw.TextStyle(
+                          fontSize: 18,
+                          fontWeight: pw.FontWeight.bold,
+                          font: ttf,
+                          color: PdfColors.black,
+                        ),
+                      ),
+                      pw.Text(
+                        'Phone Number: ${clientPhoneNumber}',
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: 12,
+                          color: PdfColors.black,
+                        ),
+                      ),
+                      pw.Text(
+                        reportDateRange,
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: 12,
+                          color: PdfColors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 15),
+                // Summary Boxes
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                   children: [
-                    pw.Text(
-                      '${widget.clientName} Statement',
-                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, font: ttf, color: PdfColors.black),
+                    _buildSummaryBox(
+                      'Opening Balance',
+                      '₹ ${openingBalance.toStringAsFixed(2)}',
+                      '',
+                      ttf,
+                      '(on ${DateFormat('dd MMM yyyy').format(_startDate ?? DateTime.now())})',
+                      PdfColors.black,
                     ),
-                    pw.Text('Phone Number: ${clientPhoneNumber}', style: pw.TextStyle(font: ttf, fontSize: 12, color: PdfColors.black)),
-                    pw.Text(reportDateRange, style: pw.TextStyle(font: ttf, fontSize: 12, color: PdfColors.black)),
+                    pw.SizedBox(width: 8),
+                    _buildSummaryBox(
+                      'Total Debit(-)',
+                      '₹ ${clientTotalGiven.toStringAsFixed(2)}',
+                      '',
+                      ttf,
+                      '',
+                      PdfColors.black,
+                    ),
+                    pw.SizedBox(width: 8),
+                    _buildSummaryBox(
+                      'Total Credit(+)',
+                      '₹ ${clientTotalGot.toStringAsFixed(2)}',
+                      '',
+                      ttf,
+                      '',
+                      PdfColors.black,
+                    ),
+                    pw.SizedBox(width: 8),
+                    _buildSummaryBox(
+                      'Net Balance',
+                      '₹ ${grandNetBalance.abs().toStringAsFixed(2)}',
+                      grandNetBalance >= 0 ? 'Cr' : 'Db',
+                      ttf,
+                      grandNetBalance >= 0
+                          ? '(${widget.clientName} will get)'
+                          : '(${widget.clientName} will give)',
+                      grandNetBalance >= 0
+                          ? PdfColors.green
+                          : PdfColors.red, // Keep original colors for Net Balance
+                    ),
                   ],
                 ),
-              ),
-              pw.SizedBox(height: 15),
-              // Summary Boxes
+                pw.SizedBox(height: 15),
+                pw.Text(
+                  'No. of Entries: ${_clientTransactions.length} (All)',
+                  style: pw.TextStyle(font: ttf, fontSize: 12, color: PdfColors.black),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Divider(),
+              ] else ...[
+                pw.SizedBox(height: 10),
+              ]
+            ],
+          );
+        },
+        footer: (context) {
+          return pw.Column(
+            children: [
+              pw.Divider(),
+              pw.SizedBox(height: 5),
               pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSummaryBox(
-                    'Opening Balance',
-                    '₹ ${openingBalance.toStringAsFixed(2)}',
-                    '',
-                    ttf,
-                    '(on ${DateFormat('dd MMM yyyy').format(_startDate ?? DateTime.now())})',
-                    PdfColors.black,
+                  pw.Text(
+                    footerText,
+                    style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.grey600),
                   ),
-                  pw.SizedBox(width: 8),
-                  _buildSummaryBox(
-                    'Total Debit(-)',
-                    '₹ ${clientTotalGiven.toStringAsFixed(2)}',
-                    '',
-                    ttf,
-                    '',
-                    PdfColors.black,
-                  ),
-                  pw.SizedBox(width: 8),
-                  _buildSummaryBox(
-                    'Total Credit(+)',
-                    '₹ ${clientTotalGot.toStringAsFixed(2)}',
-                    '',
-                    ttf,
-                    '',
-                    PdfColors.black,
-                  ),
-                  pw.SizedBox(width: 8),
-                  _buildSummaryBox(
-                    'Net Balance',
-                    '₹ ${grandNetBalance.abs().toStringAsFixed(2)}',
-                    grandNetBalance >= 0 ? 'Cr' : 'Db',
-                    ttf,
-                    grandNetBalance >= 0 ? '(${widget.clientName} will get)' : '(${widget.clientName} will give)',
-                    grandNetBalance >= 0 ? PdfColors.green : PdfColors.red, // Keep original colors for Net Balance
+                  pw.Text(
+                    'Page ${context.pageNumber} of ${context.pagesCount}',
+                    style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.grey600),
                   ),
                 ],
               ),
-              pw.SizedBox(height: 15),
-              pw.Text('No. of Entries: ${_clientTransactions.length} (All)', style: pw.TextStyle(font: ttf, fontSize: 12, color: PdfColors.black)),
-              pw.SizedBox(height: 10),
             ],
           );
         },
         build: (context) => [
+          // The main content goes here, which is the transaction table
           pw.Table.fromTextArray(
             columnWidths: {
               0: pw.FlexColumnWidth(1.5), // Date
@@ -502,9 +614,18 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
             headers: tableRows[0], // Set the first row as headers
             data: tableRows.sublist(1), // Remaining rows are data
             headerStyle: pw.TextStyle(
-                fontSize: 9, fontWeight: pw.FontWeight.bold, font: ttf, color: PdfColors.white), // Style for header
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.blue), // Background for header
-            cellStyle: pw.TextStyle(fontSize: 9, font: ttf), // Default cell style
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              font: ttf,
+              color: PdfColors.white,
+            ), // Style for header
+            headerDecoration: const pw.BoxDecoration(
+              color: PdfColors.blue,
+            ), // Background for header
+            cellStyle: pw.TextStyle(
+              fontSize: 9,
+              font: ttf,
+            ), // Default cell style
             cellAlignments: {
               0: pw.Alignment.centerLeft,
               1: pw.Alignment.centerLeft,
@@ -512,23 +633,38 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
               3: pw.Alignment.centerRight,
               4: pw.Alignment.centerRight,
             },
-            border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey500),
+            border: pw.TableBorder.all(
+              width: 0.5,
+              color: PdfColors.grey500,
+            ),
             cellDecoration: (index, data, rowNum) {
               // Apply conditional background color for Debit and Credit columns
-              if (rowNum == data.length - 1) { // Grand Total row
+              if (rowNum == data.length - 1) {
+                // Grand Total row
                 return pw.BoxDecoration(
                   color: PdfColors.grey200,
-                  border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+                  border: pw.Border.all(
+                    color: PdfColors.grey500,
+                    width: 0.5,
+                  ),
                 );
-              } else if (index == 2 && data.isNotEmpty) { // Debit column
+              } else if (index == 2 && data.isNotEmpty) {
+                // Debit column
                 return pw.BoxDecoration(
                   color: PdfColors.red50, // Light red
-                  border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+                  border: pw.Border.all(
+                    color: PdfColors.grey500,
+                    width: 0.5,
+                  ),
                 );
-              } else if (index == 3 && data.isNotEmpty) { // Credit column
+              } else if (index == 3 && data.isNotEmpty) {
+                // Credit column
                 return pw.BoxDecoration(
                   color: PdfColors.green50, // Light green
-                  border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+                  border: pw.Border.all(
+                    color: PdfColors.grey500,
+                    width: 0.5,
+                  ),
                 );
               }
               return pw.BoxDecoration(
@@ -538,38 +674,6 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
           ),
           pw.SizedBox(height: 20),
         ],
-        footer: (context) {
-          return pw.Column(
-            children: [
-              pw.Divider(color: PdfColors.black), // Divider remains outside blue background
-              pw.Container(
-                color: PdfColors.blue,
-                padding: const pw.EdgeInsets.all(10),
-                child: pw.Column(
-                  children: [
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Report Generated: ${DateFormat('hh:mm a | dd MMM yy').format(DateTime.now())}', style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.white)),
-                        pw.Text('Page ${context.pageNumber} of ${context.pagesCount}', style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.white)),
-                      ],
-                    ),
-                    pw.SizedBox(height: 5),
-                    pw.Center(
-                      child: pw.Column(
-                        children: [
-                          pw.Text('Start Using Khatabook Now', style: pw.TextStyle(font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
-                          pw.Text('Help: +91-9606800800', style: pw.TextStyle(font: ttf, fontSize: 10, color: PdfColors.white)),
-                          pw.Text('T&C Apply', style: pw.TextStyle(font: ttf, fontSize: 8, color: PdfColors.white)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
 
@@ -670,11 +774,8 @@ class _ClientReportScreenState extends State<ClientReportScreen> {
             ? double.parse(transaction['running_balance'].toString())
             : null;
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black),
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return Card(
+      elevation: 2,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -148,6 +148,97 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     }
   }
 
+  void _sendSMS() async {
+    final phoneNumber = widget.client['phone']?.toString() ?? '';
+    if (phoneNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number not available')),
+      );
+      return;
+    }
+
+    String message = 'Hello ${widget.client['name']}, ';
+    double diff = (_totalGot - _totalGiven).abs();
+
+    if (_totalGiven > _totalGot) {
+      message += 'you have to give ₹${diff.toStringAsFixed(2)}.';
+    } else if (_totalGot > _totalGiven) {
+      message += 'you have to get ₹${diff.toStringAsFixed(2)}.';
+    } else {
+      message += 'your account is settled.';
+    }
+
+    final Uri smsUri = Uri.parse(
+      'sms:${phoneNumber.replaceAll(RegExp(r'\D'), '')}?body=${Uri.encodeComponent(message)}',
+    );
+
+    try {
+      if (!await canLaunchUrl(smsUri)) {
+        throw 'Could not launch SMS app';
+      }
+      await launchUrl(
+        smsUri,
+        mode: LaunchMode.externalApplication,
+        webViewConfiguration: const WebViewConfiguration(
+          enableJavaScript: true,
+          enableDomStorage: true,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  void _sendWhatsApp() async {
+    final phoneNumber = widget.client['phone']?.toString() ?? '';
+    if (phoneNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number not available')),
+      );
+      return;
+    }
+
+    String message = 'Hello ${widget.client['name']}, ';
+    double diff = (_totalGot - _totalGiven).abs();
+
+    if (_totalGiven > _totalGot) {
+      message += 'you have to give ₹${diff.toStringAsFixed(2)}.';
+    } else if (_totalGot > _totalGiven) {
+      message += 'you have to get ₹${diff.toStringAsFixed(2)}.';
+    } else {
+      message += 'your account is settled.';
+    }
+
+    String phone = phoneNumber.replaceAll(RegExp(r'\D'), '');
+    final whatsappUrl = Uri.parse(
+      'https://wa.me/$phone?text=${Uri.encodeComponent(message)}',
+    );
+
+    try {
+      if (!await canLaunchUrl(whatsappUrl)) {
+        throw 'Could not launch WhatsApp';
+      }
+      await launchUrl(
+        whatsappUrl,
+        mode: LaunchMode.externalApplication,
+        webViewConfiguration: const WebViewConfiguration(
+          enableJavaScript: true,
+          enableDomStorage: true,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
   Widget _buildTransactionItem(Map<String, dynamic> transaction) {
     final isGot = transaction['type'] == 'got';
     final amount = double.parse(transaction['amount'].toString());
@@ -315,7 +406,11 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    'Net Balance',
+                                    balance < 0 
+                                        ? 'You will get'
+                                        : balance > 0 
+                                            ? 'You will give'
+                                            : 'Settled up',
                                     style: const TextStyle(
                                       color: Colors.black,
                                       fontSize: 20,
@@ -370,17 +465,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                                     icon: Icons.radar_sharp,
                                     label: 'WhatsApp',
                                     color: Colors.green,
-                                    onTap: () {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'WhatsApp sharing coming soon',
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                    onTap: _totalGot > _totalGiven ? null : _sendWhatsApp,
                                   ),
                                 ),
                                 Expanded(
@@ -388,17 +473,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                                     icon: Icons.sms,
                                     label: 'SMS',
                                     color: Colors.orange,
-                                    onTap: () {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'SMS feature coming soon',
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                    onTap: _totalGot > _totalGiven ? null : _sendSMS,
                                   ),
                                 ),
                               ],
@@ -581,7 +656,7 @@ Widget _buildActionButton({
   required IconData icon,
   required String label,
   required Color color,
-  required VoidCallback onTap,
+  required VoidCallback? onTap,
 }) {
   return InkWell(
     onTap: onTap,
@@ -589,19 +664,19 @@ Widget _buildActionButton({
       margin: const EdgeInsets.symmetric(horizontal: 4),
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: onTap == null ? Colors.grey.withOpacity(0.1) : color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: onTap == null ? Colors.grey.withOpacity(0.3) : color.withOpacity(0.3)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 24),
+          Icon(icon, color: onTap == null ? Colors.grey : color, size: 24),
           const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
-              color: color,
+              color: onTap == null ? Colors.grey : color,
               fontSize: 12,
               fontWeight: FontWeight.bold,
             ),

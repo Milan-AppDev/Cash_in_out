@@ -68,6 +68,8 @@ class _EditClientScreenState extends State<EditClientScreen> {
         }),
       );
 
+      print('Update response: ${response.body}'); // Add debug logging
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success']) {
@@ -75,7 +77,6 @@ class _EditClientScreenState extends State<EditClientScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Client updated successfully')),
             );
-            // Return true to indicate that client data was updated
             Navigator.pop(context, true);
           }
         } else {
@@ -88,7 +89,7 @@ class _EditClientScreenState extends State<EditClientScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update client')),
+            SnackBar(content: Text('Failed to update client. Status code: ${response.statusCode}')),
           );
         }
       }

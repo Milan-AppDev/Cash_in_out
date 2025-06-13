@@ -351,12 +351,12 @@ class _HomeContentState extends State<HomeContent> {
                     _buildBalanceSummaryCard(
                       'You Will Get',
                       totalGot,
-                      Colors.green,
+                      Colors.red,
                     ),
                     _buildBalanceSummaryCard(
                       'You Will give',
                       totalGiven,
-                      Colors.red,
+                      Colors.green,
                     ),
                   ],
                 ),
