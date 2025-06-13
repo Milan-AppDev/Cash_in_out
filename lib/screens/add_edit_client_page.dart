@@ -29,6 +29,7 @@ class _AddEditClientPageState extends State<AddEditClientPage> {
   void saveClient() {
     if (_formKey.currentState!.validate()) {
       final client = Client(
+        id: widget.client?.id,
         name: nameController.text.trim(),
         phone: phoneController.text.trim(),
         address: addressController.text.trim(),

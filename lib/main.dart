@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/splash_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
   runApp(const MyApp());
 }
 
@@ -14,7 +17,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Cash In-Out',
       theme: ThemeData(
-        primarySwatch: Colors.teal, 
+        primarySwatch: Colors.teal,
         scaffoldBackgroundColor: Colors.grey[100],
         appBarTheme: AppBarTheme(
           backgroundColor: Colors.teal[700],

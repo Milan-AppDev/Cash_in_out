@@ -1,4 +1,6 @@
+import 'package:cash_in_out/screens/splash_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'client_list_page.dart';
 import 'payments_list_screen.dart';
 import 'transactions_list_screen.dart';
@@ -15,11 +17,14 @@ class HomeScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              // Navigate back to splash screen
-              Navigator.pushNamedAndRemoveUntil(
+            onPressed: () async {
+              // Clear login state
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('isLoggedIn');
+
+              Navigator.pushAndRemoveUntil(
                 context,
-                '/',
+                MaterialPageRoute(builder: (context) => const SplashScreen()),
                 (route) => false,
               );
             },
@@ -86,31 +91,22 @@ class HomeScreen extends StatelessWidget {
   ) {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 48,
-              color: color,
-            ),
+            Icon(icon, size: 48, color: color),
             const SizedBox(height: 8),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
       ),
     );
   }
-} 
+}

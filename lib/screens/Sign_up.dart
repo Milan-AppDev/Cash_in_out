@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cash_in_out/screens/config.dart';
 import 'package:cash_in_out/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -35,9 +36,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final username = _usernameController.text.trim();
       final password = _passwordController.text;
       try {
-        final ip = '192.168.217.211';
         final response = await http.post(
-          Uri.parse('http://$ip/backend/signup.php'),
+          Uri.parse(AppConfig.signupEndpoint),
           body: {'username': username, 'password': password},
         );
 
@@ -105,7 +105,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   radius: 60,
                   backgroundColor: Colors.teal.withOpacity(0.1),
                   child: Image.asset(
-                    'assets/animations/coin.gif',
+                    "assets/images/login.png",
                     width: 90,
                     height: 90,
                     fit: BoxFit.contain,

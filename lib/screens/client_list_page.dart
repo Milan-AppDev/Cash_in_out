@@ -1,6 +1,9 @@
+import 'package:cash_in_out/screens/config.dart';
 import 'package:flutter/material.dart';
 import '../models/client.dart';
 import 'add_edit_client_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ClientListPage extends StatefulWidget {
   @override
@@ -10,22 +13,76 @@ class ClientListPage extends StatefulWidget {
 class _ClientListPageState extends State<ClientListPage> {
   List<Client> clients = [];
 
-  void addClient(Client client) {
-    setState(() {
-      clients.add(client);
-    });
+  Future<void> fetchClientsFromBackend() async {
+    final response = await http.get(Uri.parse(AppConfig.clientsEndpoint));
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        setState(() {
+          clients = List<Client>.from(
+            data['data'].map((c) => Client.fromJson(c)),
+          );
+        });
+      }
+    }
   }
 
-  void editClient(int index, Client client) {
-    setState(() {
-      clients[index] = client;
-    });
+  Future<void> addClient(Client client) async {
+    final response = await http.post(
+      Uri.parse(AppConfig.clientsEndpoint),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(client.toJson()),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        setState(() {
+          clients.add(
+            Client(
+              id: data['id'],
+              name: client.name,
+              phone: client.phone,
+              address: client.address,
+            ),
+          );
+        });
+      }
+    }
   }
 
-  void deleteClient(int index) {
-    setState(() {
-      clients.removeAt(index);
-    });
+  Future<void> editClient(int index, Client client) async {
+    final response = await http.put(
+      Uri.parse(AppConfig.clientsEndpoint),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(client.toJson()),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        setState(() {
+          clients[index] = client;
+        });
+      }
+    }
+  }
+
+  Future<void> deleteClient(int index) async {
+    final clientId = clients[index].id;
+    final response = await http.delete(
+      Uri.parse('${AppConfig.clientsEndpoint}?id=$clientId'),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        setState(() {
+          clients.removeAt(index);
+        });
+      }
+    }
   }
 
   void navigateToAddClient() async {
@@ -44,6 +101,12 @@ class _ClientListPageState extends State<ClientListPage> {
       ),
     );
     if (result != null) editClient(index, result);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchClientsFromBackend();
   }
 
   @override
@@ -116,7 +179,7 @@ class _ClientListPageState extends State<ClientListPage> {
       floatingActionButton: FloatingActionButton(
         onPressed: navigateToAddClient,
         backgroundColor: Colors.teal,
-        child: Icon(Icons.add, color: Colors.white), // 👈 changed to white
+        child: Icon(Icons.add, color: Colors.white),
       ),
     );
   }

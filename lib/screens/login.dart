@@ -1,8 +1,10 @@
 import 'package:cash_in_out/screens/Sign_up.dart';
+import 'package:cash_in_out/screens/config.dart';
 import 'package:cash_in_out/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,9 +33,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final password = _passwordController.text;
 
       try {
-        final ip = '192.168.217.211';
         final response = await http.post(
-          Uri.parse('http://$ip/backend/login.php'),
+          Uri.parse(AppConfig.loginEndpoint),
           body: {'username': username, 'password': password},
         );
 
@@ -43,6 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
           final responseData = json.decode(response.body);
 
           if (responseData['success'] == true) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('isLoggedIn', true);
+
             ScaffoldMessenger.of(
               context,
             ).showSnackBar(SnackBar(content: Text('Logged in as $username')));
@@ -96,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   radius: 60,
                   backgroundColor: Colors.teal.withOpacity(0.1),
                   child: Image.asset(
-                    'assets/animations/coin.gif',
+                    'assets/images/login.png',
                     width: 90,
                     height: 90,
                     fit: BoxFit.contain,

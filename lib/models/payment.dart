@@ -1,9 +1,11 @@
 //import 'package:flutter/foundation.dart';
-import 'package:cash_in_out/models/installment.dart'; // Adjust the import according to your project structure
+import 'package:cash_in_out/models/installment.dart';
+import 'package:intl/intl.dart';
 
 class Payment {
-  final String id;
-  final String clientId; // This will link to the client module later
+  String id;
+  final String clientId;
+  final String clientName;
   final double totalAmount;
   final double paidAmount;
   final DateTime createdDate;
@@ -15,6 +17,7 @@ class Payment {
   Payment({
     required this.id,
     required this.clientId,
+    this.clientName = '',
     required this.totalAmount,
     this.paidAmount = 0.0,
     required this.createdDate,
@@ -31,6 +34,7 @@ class Payment {
   Payment copyWith({
     String? id,
     String? clientId,
+    String? clientName,
     double? totalAmount,
     double? paidAmount,
     DateTime? createdDate,
@@ -42,6 +46,7 @@ class Payment {
     return Payment(
       id: id ?? this.id,
       clientId: clientId ?? this.clientId,
+      clientName: clientName ?? this.clientName,
       totalAmount: totalAmount ?? this.totalAmount,
       paidAmount: paidAmount ?? this.paidAmount,
       createdDate: createdDate ?? this.createdDate,
@@ -56,34 +61,55 @@ class Payment {
     return {
       'id': id,
       'clientId': clientId,
+      'name': clientName,
       'totalAmount': totalAmount,
       'paidAmount': paidAmount,
-      'createdDate': createdDate.toIso8601String(),
-      'dueDate': dueDate.toIso8601String(),
+      'createdDate': DateFormat('yyyy-MM-dd').format(createdDate),
+      'dueDate': DateFormat('yyyy-MM-dd').format(dueDate),
       'description': description,
-      'status': status.toString(),
+      'status':
+          status
+              .toString()
+              .split('.')
+              .last, // Use 'pending' instead of 'PaymentStatus.pending'
       'installments': installments.map((i) => i.toJson()).toList(),
     };
   }
 
   factory Payment.fromJson(Map<String, dynamic> json) {
     return Payment(
-      id: json['id'] as String,
-      clientId: json['clientId'] as String,
-      totalAmount: json['totalAmount'] as double,
-      paidAmount: json['paidAmount'] as double,
-      createdDate: DateTime.parse(json['createdDate'] as String),
-      dueDate: DateTime.parse(json['dueDate'] as String),
-      description: json['description'] as String,
-      status: PaymentStatus.values.firstWhere(
-        (e) => e.toString() == json['status'],
-        orElse: () => PaymentStatus.pending,
-      ),
+      id: json['id'].toString(),
+      clientId: json['clientId'].toString(),
+      clientName: json['name'] ?? '', // Parse from JSON
+      totalAmount: double.parse(json['totalAmount'].toString()),
+      paidAmount: double.parse(json['paidAmount'].toString()),
+      createdDate: DateTime.parse(json['createdDate']),
+      dueDate: DateTime.parse(json['dueDate']),
+      description: json['description'] ?? '',
+      status: _parseStatus(json['status']),
       installments:
-          (json['installments'] as List)
-              .map((i) => Installment.fromJson(i as Map<String, dynamic>))
-              .toList(),
+          json['installments'] != null
+              ? (json['installments'] as List)
+                  .map((i) => Installment.fromJson(i))
+                  .toList()
+              : [],
     );
+  }
+
+  // Helper method for parsing status
+  static PaymentStatus _parseStatus(dynamic statusValue) {
+    if (statusValue == null) return PaymentStatus.pending;
+
+    // Handle both full enum string and just the name
+    final statusString = statusValue.toString().toLowerCase();
+    if (statusString.contains('pending')) return PaymentStatus.pending;
+    if (statusString.contains('partiallypaid'))
+      return PaymentStatus.partiallyPaid;
+    if (statusString.contains('completed')) return PaymentStatus.completed;
+    if (statusString.contains('overdue')) return PaymentStatus.overdue;
+    if (statusString.contains('cancelled')) return PaymentStatus.cancelled;
+
+    return PaymentStatus.pending; // Default
   }
 }
 
