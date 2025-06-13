@@ -1,127 +1,137 @@
+import 'package:cash_in_out/screens/add_payment.dart';
 import 'package:flutter/material.dart';
+import '../models/payment.dart';
 import '../models/client.dart';
-import 'payment.dart';
 
-class PaymentsListScreen extends StatefulWidget {
-  const PaymentsListScreen({super.key});
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+class PaymentsListPage extends StatefulWidget {
+  const PaymentsListPage({super.key});
 
   @override
-  State<PaymentsListScreen> createState() => _PaymentsListScreenState();
+  State<PaymentsListPage> createState() => _PaymentsListPageState();
 }
 
-class _PaymentsListScreenState extends State<PaymentsListScreen> {
+class _PaymentsListPageState extends State<PaymentsListPage> {
   List<Payment> payments = [];
+  Future<void> fetchPayments() async {
+    final ip = '192.168.160.251';
+    final response = await http.get(
+      Uri.parse('http://$ip/backend/payments.php'),
+    );
+
+    if (response.statusCode == 200) {
+      try {
+        final data = json.decode(response.body);
+        if (data['success']) {
+          setState(() {
+            payments = List<Payment>.from(
+              data['data'].map((p) => Payment.fromJson(p)),
+            );
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to fetch payments')),
+          );
+        }
+      } catch (e) {
+        print('JSON parse error: $e');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Data format error')));
+      }
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to fetch payments')));
+    }
+  }
+
+  Future<List<Client>> fetchClients() async {
+    final ip = '192.168.160.251';
+    final response = await http.get(
+      Uri.parse('http://$ip/backend/clients.php'),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        return List<Client>.from(data['data'].map((c) => Client.fromJson(c)));
+      }
+    }
+    return [];
+  }
+
+  void navigateToAddPayment() async {
+    final clients = await fetchClients();
+
+    if (clients.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No clients available')));
+      return;
+    }
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AddPaymentPage(clients: clients)),
+    );
+
+    if (result == true) {
+      fetchPayments();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchPayments();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Payments')),
+      appBar: AppBar(title: const Text('Payments List')),
       body:
           payments.isEmpty
-              ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.payment, size: 64, color: Colors.grey[400]),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No payments yet',
-                      style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              )
+              ? const Center(child: Text('No payments found'))
               : ListView.builder(
-                padding: const EdgeInsets.all(16),
                 itemCount: payments.length,
                 itemBuilder: (context, index) {
-                  final payment = payments[index];
+                  final p = payments[index];
                   return Card(
-                    elevation: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    margin: const EdgeInsets.all(8),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.all(16),
-                      title: Text(
-                        'Payment #${payment.id}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      title: Text('₹${p.amount.toStringAsFixed(2)}'),
+                      subtitle: Text('${p.tag} - ${p.note}'),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const SizedBox(height: 8),
                           Text(
-                            'Amount: ₹${payment.totalAmount.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: Colors.black87,
+                            p.status,
+                            style: TextStyle(
+                              color:
+                                  p.status == 'sent'
+                                      ? Colors.red
+                                      : Colors.green,
                             ),
                           ),
-                          const SizedBox(height: 4),
                           Text(
-                            'Due Date: ${payment.dueDate.toString().split(' ')[0]}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getStatusColor(payment.status),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              payment.status.toString().split('.').last,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            p.timestamp.toLocal().toString().split('.')[0],
+                            style: const TextStyle(fontSize: 12),
                           ),
                         ],
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.arrow_forward_ios),
-                        onPressed: () {
-                          // Navigate to payment details
-                        },
                       ),
                     ),
                   );
                 },
               ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Navigate to add payment screen
-        },
-        child: const Icon(Icons.add),
+        onPressed: navigateToAddPayment,
+        backgroundColor: Colors.teal,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
-  }
-
-  Color _getStatusColor(PaymentStatus status) {
-    switch (status) {
-      case PaymentStatus.pending:
-        return Colors.orange;
-      case PaymentStatus.partiallyPaid:
-        return Colors.blue;
-      case PaymentStatus.completed:
-        return Colors.green;
-      case PaymentStatus.overdue:
-        return Colors.red;
-      case PaymentStatus.cancelled:
-        return Colors.grey;
-    }
   }
 }

@@ -35,7 +35,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final username = _usernameController.text.trim();
       final password = _passwordController.text;
       try {
-        final ip = '192.168.156.251';
+        final ip = '192.168.160.251';
 
         final response = await http.post(
           Uri.parse('http://$ip/backend/signup.php'),

@@ -71,9 +71,4 @@ class Transaction {
   }
 }
 
-enum TransactionType {
-  payment,
-  refund,
-  adjustment,
-  cancellation
-} 
+enum TransactionType { payment, refund, adjustment, cancellation }

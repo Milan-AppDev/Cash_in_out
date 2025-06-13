@@ -49,7 +49,7 @@ class HomeScreen extends StatelessWidget {
             Colors.green,
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const PaymentsListScreen()),
+              MaterialPageRoute(builder: (_) => const PaymentsListPage()),
             ),
           ),
           _buildFeatureCard(
