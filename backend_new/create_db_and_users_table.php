@@ -22,11 +22,12 @@ if ($conn->query($sql_create_db) === TRUE) {
     $conn->select_db($dbname);
 
     // SQL to create users table
-    $sql_create_table = "CREATE TABLE IF NOT EXISTS users (\n
-        id INT(11) AUTO_INCREMENT PRIMARY KEY,\n
-        username VARCHAR(191) NOT NULL UNIQUE,\n
-        password VARCHAR(255) NOT NULL,\n
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n
+    $sql_create_table = "CREATE TABLE IF NOT EXISTS users (
+        id INT(11) AUTO_INCREMENT PRIMARY KEY,
+        mobile_number VARCHAR(15) NOT NULL UNIQUE,
+        otp VARCHAR(6),
+        otp_expiry TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )";
 
     if ($conn->query($sql_create_table) === TRUE) {

@@ -15,9 +15,11 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _mobileController = TextEditingController();
+  final TextEditingController _otpController = TextEditingController();
   bool _isLoading = false;
+  bool _otpSent = false;
+  String? _mobileNumber;
 
   @override
   void initState() {
@@ -28,9 +30,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _checkLoginStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-    final username = prefs.getString('username');
+    final mobileNumber = prefs.getString('mobileNumber');
 
-    if (isLoggedIn && username != null) {
+    if (isLoggedIn && mobileNumber != null) {
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -42,68 +44,55 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
+    _mobileController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
-  void _login() async {
+  Future<void> _generateOTP() async {
     if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isLoading = true);
-      final username = _usernameController.text.trim();
-      final password = _passwordController.text;
+      final mobileNumber = _mobileController.text.trim();
 
       try {
         final response = await http.post(
-          Uri.parse('${BackendConfig.baseUrl}/login.php'),
+          Uri.parse('${BackendConfig.baseUrl}/otp_auth.php'),
           headers: <String, String>{
             'Content-Type': 'application/json; charset=UTF-8',
           },
           body: jsonEncode(<String, String>{
-            'username': username,
-            'password': password,
+            'action': 'generate_otp',
+            'mobile_number': mobileNumber,
           }),
         );
 
-        setState(() => _isLoading = false);
-
         if (response.statusCode == 200) {
           final responseData = json.decode(response.body);
-          print(
-            'Login: Backend response data: $responseData',
-          ); // Log backend response
-
           if (responseData['success'] == true) {
-            // Save login state and user info
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setBool('isLoggedIn', true);
-            await prefs.setString('username', username);
-            if (responseData['user_id'] != null) {
-              await prefs.setInt('userId', responseData['user_id']);
-              print(
-                'Login: Saved userId: ${responseData['user_id']}',
-              ); // Log saved user ID
-            } else {
-              print(
-                'Login: Backend response missing or null user_id',
-              ); // Log if user_id is missing
-            }
-
+            setState(() {
+              _otpSent = true;
+              _mobileNumber = mobileNumber;
+            });
+            // Show OTP in alert dialog for development
             if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Logged in as $username')));
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Development OTP'),
+                  content: Text('Your OTP is: ${responseData['otp']}'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
               );
             }
           } else {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(responseData['message'] ?? 'Login failed'),
-                ),
+                SnackBar(content: Text(responseData['message'] ?? 'Failed to generate OTP')),
               );
             }
           }
@@ -115,12 +104,77 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       } catch (e) {
-        setState(() => _isLoading = false);
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}')),
+          );
         }
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _verifyOTP() async {
+    if (_formKey.currentState?.validate() ?? false) {
+      setState(() => _isLoading = true);
+      final otp = _otpController.text.trim();
+
+      try {
+        final response = await http.post(
+          Uri.parse('${BackendConfig.baseUrl}/otp_auth.php'),
+          headers: <String, String>{
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+          body: jsonEncode(<String, String>{
+            'action': 'verify_otp',
+            'mobile_number': _mobileNumber!,
+            'otp': otp,
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          final responseData = json.decode(response.body);
+          if (responseData['success'] == true) {
+            // Save login state and user info
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('isLoggedIn', true);
+            await prefs.setString('mobileNumber', _mobileNumber!);
+            if (responseData['user_id'] != null) {
+              await prefs.setInt('userId', responseData['user_id']);
+            }
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Logged in successfully')),
+              );
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(responseData['message'] ?? 'Invalid OTP')),
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Server error. Try again later.')),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}')),
+          );
+        }
+      } finally {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -144,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     fit: BoxFit.contain,
                   ),
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 Text(
                   "Welcome Back!",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
@@ -163,111 +217,92 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         children: [
                           TextFormField(
-                            controller: _usernameController,
+                            controller: _mobileController,
+                            enabled: !_otpSent,
                             decoration: InputDecoration(
-                              labelText: 'Username',
-                              prefixIcon: const Icon(Icons.person),
+                              labelText: 'Mobile Number',
+                              prefixIcon: const Icon(Icons.phone),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
+                            keyboardType: TextInputType.phone,
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
-                                return 'Please enter your username';
+                                return 'Please enter your mobile number';
+                              }
+                              if (!RegExp(r'^\d{10}$').hasMatch(value.trim())) {
+                                return 'Please enter a valid 10-digit mobile number';
                               }
                               return null;
                             },
                           ),
-                          const SizedBox(height: 20),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            decoration: InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          if (_otpSent) ...[
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              controller: _otpController,
+                              decoration: InputDecoration(
+                                labelText: 'OTP',
+                                prefixIcon: const Icon(Icons.lock),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please enter the OTP';
+                                }
+                                if (!RegExp(r'^\d{6}$').hasMatch(value.trim())) {
+                                  return 'Please enter a valid 6-digit OTP';
+                                }
+                                return null;
+                              },
                             ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your password';
-                              }
-                              if (value.length < 8) {
-                                return 'Password must be at least 8 characters';
-                              }
-                              return null;
-                            },
-                          ),
+                          ],
                           const SizedBox(height: 20),
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue[900],
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              onPressed: _isLoading ? null : _login,
-                              child:
-                                  _isLoading
-                                      ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Colors.white,
-                                              ),
-                                        ),
-                                      )
-                                      : const Text(
-                                        'Login',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.white,
+                              onPressed: _isLoading
+                                  ? null
+                                  : _otpSent
+                                      ? _verifyOTP
+                                      : _generateOTP,
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
                                         ),
                                       ),
+                                    )
+                                  : Text(
+                                      _otpSent ? 'Verify OTP' : 'Send OTP',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text(
-                                "Don't have an account?",
-                                style: TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  // Navigate to registration screen
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => const SignUpScreen(),
-                                    ),
-                                  );
-                                },
-                                child: Text(
-                                  'Sign Up',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue[900],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          if (_otpSent) ...[
+                            const SizedBox(height: 20),
+                            TextButton(
+                              onPressed: _isLoading ? null : _generateOTP,
+                              child: const Text('Resend OTP'),
+                            ),
+                          ],
                         ],
                       ),
                     ),
