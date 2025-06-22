@@ -1,472 +1,389 @@
+import 'package:cash/model/user_profile_model.dart';
+import 'package:cash/screens/edit_profile_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../utils/backend_config.dart';
-import 'splash_screen.dart'; // Assuming splash screen is the initial route after logout
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io'; // Required for File class
-import 'edit_profile_screen.dart'; // Import the edit profile screen
+ // Import the EditProfileScreen
 import 'package:intl/intl.dart'; // For date formatting
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final String userId; // Pass the user ID, e.g., from login
+
+  const ProfileScreen({super.key, required this.userId});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _username = 'Loading...';
-  String _phoneNumber = 'Loading...';
-  int? _userId;
-  String? _profileImageUrl;
+  UserProfile? _userProfile; // Make it nullable
   bool _isLoading = true;
-  File? _selectedImage;
+  String? _errorMessage;
 
-  Map<String, dynamic> _userData = {};
-
-  final ImagePicker _picker = ImagePicker();
+  // IMPORTANT: Replace with your actual API URL
+  // For Android Emulator, use 10.0.2.2 to access localhost on your computer.
+  // For a physical Android device, use your computer's actual local IP address (e.g., http://192.168.1.10/api).
+  // For iOS Simulator/device, 'http://localhost' often works if your server is on the same machine.
+  static const String _apiBaseUrl = 'http://localhost/api';
+  // Consider using HTTPS in production!
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _fetchUserProfile();
   }
 
-  Future<void> _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    _userId = prefs.getInt('userId');
-    String? storedUsername = prefs.getString('username');
-
-    if (_userId == null) {
-      // Handle case where user ID is not found (shouldn't happen if logged in)
-      setState(() {
-        _username = 'Error';
-        _phoneNumber = 'Error';
-        _isLoading = false;
-      });
-      return;
-    }
-
-    // Use stored username immediately while fetching other data
+  // Fetches user profile data from the backend
+  Future<void> _fetchUserProfile() async {
     setState(() {
-      _username = storedUsername ?? 'User';
-      _isLoading = true; // Still loading phone and image
+      _isLoading = true;
+      _errorMessage = null; // Clear any previous error message
     });
 
     try {
       final response = await http.get(
-        Uri.parse('${BackendConfig.baseUrl}/profile.php?user_id=$_userId'),
+        Uri.parse('$_apiBaseUrl/get_user_profile.php?user_id=${widget.userId}'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+          // Add Authorization header with JWT token if using authentication
+          // 'Authorization': 'Bearer YOUR_AUTH_TOKEN',
+        },
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success']) {
-          setState(() {
-            _userData = data; // Store all fetched data
-            _username =
-                _userData['username'] ??
-                'User'; // Update username from fetched data
-            _phoneNumber = _userData['phone'] ?? 'N/A';
-            _profileImageUrl =
-                _userData['profile_image_url']; // Assuming backend provides this field
-          });
-        } else {
-          // Handle error fetching profile data
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Failed to load profile data'),
-              ),
-            );
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        if (mounted) { // Check if the widget is still in the tree
+          if (responseData['success']) {
+            setState(() {
+              _userProfile = UserProfile.fromJson(responseData['profile']);
+            });
+          } else {
+            setState(() {
+              _errorMessage = responseData['message'] ?? 'Failed to load profile.';
+              _userProfile = null; // Clear profile on failure
+            });
           }
-          setState(() {
-            _phoneNumber = 'Error';
-          });
         }
       } else {
-        // Handle HTTP error
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to load profile data: Server error'),
-            ),
-          );
+          setState(() {
+            _errorMessage = 'Server error loading profile: ${response.statusCode}. Please try again.';
+            _userProfile = null; // Clear profile on server error
+          });
         }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _phoneNumber = 'Error';
+          _errorMessage = 'Network error fetching profile: $e. Is the server running?';
+          _userProfile = null; // Clear profile on network error
         });
       }
-    } catch (e) {
-      // Handle network or other errors
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading profile data: $e')),
-        );
-      }
-      setState(() {
-        _phoneNumber = 'Error';
-      });
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+  Future<void> _navigateToEditProfile() async {
+    if (_userProfile != null) {
+      final UserProfile? updatedProfile = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => EditProfileScreen(
+            userProfile: _userProfile!, // Pass the current profile data
+          ),
+        ),
+      );
 
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
-      // TODO: Implement image upload to backend here
-      _uploadImage(_selectedImage!); // Call upload function
-    }
-  }
-
-  Future<void> _uploadImage(File imageFile) async {
-    if (_userId == null) return;
-
-    setState(() => _isLoading = true);
-
-    var uri = Uri.parse('${BackendConfig.baseUrl}/profile.php');
-    var request = http.MultipartRequest('POST', uri)
-      ..fields['user_id'] = _userId.toString();
-
-    // Attach the image file
-    request.files.add(
-      await http.MultipartFile.fromPath(
-        'profile_image', // This should match the name in your backend ($_FILES['profile_image'])
-        imageFile.path,
-      ),
-    );
-
-    try {
-      var response = await request.send();
-
-      if (response.statusCode == 200) {
-        // Read the response
-        final responseData = await response.stream.bytesToString();
-        final data = json.decode(responseData);
-
-        if (data['success']) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Profile image updated successfully'),
-              ),
-            );
-            // Update the displayed image if the backend returned a new URL
-            if (data['profile_image_url'] != null) {
-              setState(() {
-                _profileImageUrl = data['profile_image_url'];
-                _selectedImage =
-                    null; // Clear selected image after successful upload
-              });
-            } else {
-              // If backend didn't return URL but reported success, maybe refetch data?
-              _loadUserData(); // Or handle accordingly
-            }
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  data['message'] ?? 'Failed to update profile image',
-                ),
-              ),
-            );
-          }
-        }
-      } else {
+      if (updatedProfile != null) {
+        // If the edit screen returned an updated profile, refresh the current screen's state
+        setState(() {
+          _userProfile = updatedProfile;
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to upload image: Server error'),
-            ),
+            const SnackBar(content: Text('Profile updated successfully!')),
           );
         }
       }
-    } catch (e) {
+    } else {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error uploading image: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot edit profile: Profile data not loaded.')),
+        );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', false);
-    await prefs.remove('userId');
-    await prefs.remove('username'); // Clear saved username too
-
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const SplashScreen()),
-        (Route<dynamic> route) => false,
-      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : ListView(
-            padding: const EdgeInsets.all(16.0),
-            children: <Widget>[
-              // Circle Avatar and Username Section
-              Align(
-                alignment: Alignment.topCenter,
-                child: GestureDetector(
-                  onTap: _pickImage, // Call _pickImage on tap
-                  child: CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.blue[100], // Placeholder color
-                    backgroundImage:
-                        _selectedImage != null
-                            ? FileImage(
-                                _selectedImage!,
-                              ) // Use FileImage for selected image
-                            : (_profileImageUrl != null
-                                ? NetworkImage(
-                                    '${BackendConfig.baseUrl}/' +
-                                        _profileImageUrl!,
-                                  )
-                                : null), // Use NetworkImage for fetched URL
-                    child:
-                        _selectedImage == null && _profileImageUrl == null
-                            ? Icon(
-                                Icons.person,
-                                size: 60,
-                                color: Colors.blue[700],
-                              ) // Placeholder icon
-                            : null,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Align(
-                alignment: Alignment.topCenter,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _username,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) => EditProfileScreen(
-                                  user: _userData,
-                                ), // Pass fetched user data
-                          ),
-                        );
-                        // If result is true, refresh profile data
-                        if (result == true) {
-                          _loadUserData();
-                        }
-                      },
-                      icon: Icon(Icons.edit),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Contact Information Card
-              Card(
-                elevation: 2.0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F0F0), // Light background
+      appBar: AppBar(
+        title: const Text('My Profile', style: TextStyle(color: Color(0xFF333333), fontSize: 20)),
+        backgroundColor: const Color(0xFFF0F0F0),
+        foregroundColor: const Color(0xFF333333),
+        elevation: 0,
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, size: 24, color: Color(0xFFFF7043)),
+            onPressed: _isLoading ? null : _navigateToEditProfile, // Disable if loading
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF7043)))
+          : _errorMessage != null
+              ? Center(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 8.0,
-                        ),
-                        child: Text(
-                          'Contact Information',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      Icon(Icons.error_outline, size: 70, color: Colors.red.shade400),
+                      const SizedBox(height: 12),
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 16, color: Color(0xFF666666)),
                       ),
-                      ListTile(
-                        leading: const Icon(Icons.phone),
-                        title: const Text('Phone'),
-                        subtitle: Text(_userData['phone'] ?? 'N/A'),
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.email),
-                        title: const Text('Email'),
-                        subtitle: Text(_userData['email'] ?? 'N/A'),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: _fetchUserProfile, // Allow retrying fetch
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF7043),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Try Again'),
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 5),
-
-              // Personal Details Card
-              // Card(
-              //   elevation: 2.0,
-              //   child: Padding(
-              //     padding: const EdgeInsets.symmetric(vertical: 8.0),
-              //     child: Column(
-              //       crossAxisAlignment: CrossAxisAlignment.start,
-              //       children: [
-              //         const Padding(
-              //           padding: EdgeInsets.symmetric(
-              //             horizontal: 16.0,
-              //             vertical: 8.0,
-              //           ),
-              //           child: Text(
-              //             'Personal Details',
-              //             style: TextStyle(
-              //               fontSize: 18,
-              //               fontWeight: FontWeight.bold,
-              //             ),
-              //           ),
-              //         ),
-              //         ListTile(
-              //           leading: const Icon(Icons.location_on),
-              //           title: const Text('Address'),
-              //           subtitle: Text(_userData['address'] ?? 'N/A'),
-              //         ),
-              //         ListTile(
-              //           leading: const Icon(Icons.person_outline),
-              //           title: const Text('Gender'),
-              //           subtitle: Text(_userData['gender'] ?? 'N/A'),
-              //         ),
-              //         ListTile(
-              //           leading: const Icon(Icons.location_city),
-              //           title: const Text('City'),
-              //           subtitle: Text(_userData['city'] ?? 'N/A'),
-              //         ),
-              //         ListTile(
-              //           leading: const Icon(Icons.map),
-              //           title: const Text('State'),
-              //           subtitle: Text(_userData['state'] ?? 'N/A'),
-              //         ),
-              //         ListTile(
-              //           leading: const Icon(Icons.calendar_today),
-              //           title: const Text('Date of Birth'),
-              //           subtitle: Text(
-              //             _userData['date_of_birth'] != null
-              //                 ? DateFormat('yyyy-MM-dd').format(
-              //                   DateTime.parse(_userData['date_of_birth']),
-              //                 )
-              //                 : 'N/A',
-              //           ),
-              //         ),
-              //       ],
-              //     ),
-              //   ),
-              // ),
-              const SizedBox(height: 20),
-
-              // Additional Options Card
-              Card(
-                elevation: 2.0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 8.0,
-                        ),
-                        child: Text(
-                          'More Options',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                )
+              : _userProfile == null // Fallback if no error message but profile is null
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.person_off, size: 70, color: Colors.grey.shade400),
+                          const SizedBox(height: 12),
+                          const Text('Profile data not available.', style: TextStyle(fontSize: 18, color: Color(0xFF666666))),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: _fetchUserProfile, // Allow retrying fetch
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF7043),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Load Profile'),
                           ),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator( // Added RefreshIndicator for pull-to-refresh
+                      onRefresh: _fetchUserProfile,
+                      color: const Color(0xFFFF7043),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16.0),
+                        physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even if content is small
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Profile Photo and Name Section
+                            Center(
+                              child: Column(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 60,
+                                    backgroundColor: const Color(0xFFFF7043).withOpacity(0.2), // Light accent color
+                                    child: Text(
+                                      _userProfile!.name[0].toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 48,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFFFF7043), // Accent color
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        _userProfile!.name,
+                                        style: const TextStyle(
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF333333),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(Icons.edit, size: 24, color: Color(0xFF666666)),
+                                        onPressed: _navigateToEditProfile, // Call the navigation method
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 30),
+
+                            // Contact Information Card
+                            _buildInfoCard(
+                              title: 'Contact Information',
+                              icon: Icons.contact_phone,
+                              children: [
+                                _buildInfoRow(Icons.phone, _userProfile!.mobileNumber),
+                                _buildInfoRow(Icons.email, _userProfile!.email),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Address Information Card (Optional, only if address exists)
+                            if ((_userProfile!.address != null && _userProfile!.address!.isNotEmpty) ||
+                                (_userProfile!.city != null && _userProfile!.city!.isNotEmpty) ||
+                                (_userProfile!.state != null && _userProfile!.state!.isNotEmpty))
+                              _buildInfoCard(
+                                title: 'Address',
+                                icon: Icons.location_on,
+                                children: [
+                                  _buildInfoRow(Icons.place, '${_userProfile!.address ?? ''}${_userProfile!.city != null && _userProfile!.city!.isNotEmpty ? ', ${_userProfile!.city}' : ''}${_userProfile!.state != null && _userProfile!.state!.isNotEmpty ? ', ${_userProfile!.state}' : ''}'),
+                                ],
+                              ),
+                            if ((_userProfile!.address != null && _userProfile!.address!.isNotEmpty) ||
+                                (_userProfile!.city != null && _userProfile!.city!.isNotEmpty) ||
+                                (_userProfile!.state != null && _userProfile!.state!.isNotEmpty))
+                              const SizedBox(height: 20),
+
+                            // Other Details Card (Gender, DOB)
+                            if (_userProfile!.gender != null || _userProfile!.dateOfBirth != null)
+                              _buildInfoCard(
+                                title: 'Other Details',
+                                icon: Icons.info_outline,
+                                children: [
+                                  if (_userProfile!.gender != null && _userProfile!.gender!.isNotEmpty)
+                                    _buildInfoRow(Icons.wc, 'Gender: ${_userProfile!.gender}'),
+                                  if (_userProfile!.dateOfBirth != null)
+                                    _buildInfoRow(Icons.cake, 'D.O.B: ${
+                                      _userProfile!.dateOfBirth != null
+                                          ? DateFormat('dd MMMӮ').format(_userProfile!.dateOfBirth!)
+                                          : ''
+                                    }'),
+                                ],
+                              ),
+                            const SizedBox(height: 20),
+
+
+                            // Privacy Policy
+                            _buildMenuItem(
+                              icon: Icons.lock_outline,
+                              title: 'Privacy Policy',
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Privacy Policy page coming soon!')),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Help & Support
+                            _buildMenuItem(
+                              icon: Icons.help_outline,
+                              title: 'Help & Support',
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Help & Support page coming soon!')),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+
+                            // About Us
+                            _buildMenuItem(
+                              icon: Icons.info_outline,
+                              title: 'About Us',
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('About Us page coming soon!')),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                          ],
                         ),
                       ),
-                      ListTile(
-                        leading: const Icon(Icons.privacy_tip_outlined),
-                        title: const Text('Privacy Policy'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          // TODO: Navigate to Privacy Policy screen
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Privacy Policy coming soon!'),
-                            ),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.help_outline),
-                        title: const Text('Help & Support'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          // TODO: Navigate to Help & Support screen
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Help & Support coming soon!'),
-                            ),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.info_outline),
-                        title: const Text('About Us'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          // TODO: Navigate to About Us screen
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('About Us coming soon!'),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
+                    ),
+    );
+  }
 
-              // Logout Button
-              ElevatedButton(
-                onPressed: _logout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 50,
-                    vertical: 15,
+  // Helper to build information cards
+  Widget _buildInfoCard({required String title, required IconData icon, required List<Widget> children}) {
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: const Color(0xFFFF7043), size: 28),
+                const SizedBox(width: 10),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF333333),
                   ),
-                  textStyle: const TextStyle(fontSize: 18),
                 ),
-                child: const Text('Logout'),
-              ),
-            ],
-          );
+              ],
+            ),
+            const Divider(height: 20, thickness: 1, color: Color(0xFFF0F0F0)),
+            ...children, // Spread operator to add list of widgets
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper to build a single info row with icon and text
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF666666)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 16, color: Color(0xFF333333)),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper to build menu items like Privacy Policy, Help, About
+  Widget _buildMenuItem({required IconData icon, required String title, required VoidCallback onTap}) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+      color: Colors.white,
+      child: ListTile(
+        leading: Icon(icon, color: const Color(0xFF424242), size: 24), // Dark grey icon
+        title: Text(title, style: const TextStyle(fontSize: 16, color: Color(0xFF333333))),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Color(0xFF999999)),
+        onTap: onTap,
+      ),
+    );
   }
 }

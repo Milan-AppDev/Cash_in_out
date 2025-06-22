@@ -1,30 +1,34 @@
-import 'package:cash/screens/home.dart'; // Import HomeScreen
-// Import CreateAccountScreen
-import 'package:cash/screens/sign_up.dart';
+import 'package:cash/screens/login.dart'; // Import the LoginScreen
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:http/http.dart' as http; // Import the http package
+import 'dart:convert'; // Import for JSON encoding/decoding
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class CreateAccountScreen extends StatefulWidget {
+  const CreateAccountScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<CreateAccountScreen> createState() => _CreateAccountScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+
   bool _isPasswordVisible = false;
-  bool _isLoading = false;
+  bool _isConfirmPasswordVisible = false;
+  bool _isLoading = false; // Add loading state
 
+  // IMPORTANT: Replace with your actual API URL
   static const String _apiBaseUrl = 'http://localhost/api'; // For Android Emulator
+  // Consider using HTTPS in production!
 
-  void _login() async {
+  // Function to handle the sign-up logic
+  Future<void> _signUp() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        _isLoading = true;
+        _isLoading = true; // Show loading indicator
       });
 
       final String email = _emailController.text;
@@ -32,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       try {
         final response = await http.post(
-          Uri.parse('$_apiBaseUrl/login.php'), // Your login API endpoint
+          Uri.parse('$_apiBaseUrl/register.php'), // Your register API endpoint
           headers: <String, String>{
             'Content-Type': 'application/json; charset=UTF-8',
           },
@@ -50,8 +54,8 @@ class _LoginScreenState extends State<LoginScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(responseData['message'])),
               );
-              // Navigate to home screen after successful login
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+              // Navigate to login screen after successful registration
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen())); // Go back to login screen
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Error: ${responseData['message']}')),
@@ -73,16 +77,21 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } finally {
         setState(() {
-          _isLoading = false;
+          _isLoading = false; // Hide loading indicator
         });
       }
     }
   }
 
+  // Basic password validation regex
+  final RegExp _passwordRegex =
+      RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]|:;"<>,.?/~`]).{8,}$');
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -90,6 +99,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F0F0), // Very light grey/off-white background
+      appBar: AppBar(
+        title: const Text('Create Account', style: TextStyle(color: Color(0xFF333333), fontSize: 20)), // Font size for title
+        backgroundColor: const Color(0xFFF0F0F0), // Same as background for seamless look
+        foregroundColor: const Color(0xFF333333),
+        elevation: 0,
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -125,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: const Center(
                       child: Icon(
-                        Icons.lock,
+                        Icons.person_add,
                         size: 50, // Adjusted icon size
                         color: Color(0xFFFF7043), // Accent color for icon
                       ),
@@ -133,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 30), // Adjusted spacing
                   const Text(
-                    'Welcome Back!',
+                    'Create Your Account',
                     style: TextStyle(
                       fontSize: 30, // Adjusted font size
                       fontWeight: FontWeight.bold,
@@ -159,10 +174,10 @@ class _LoginScreenState extends State<LoginScreen> {
                               keyboardType: TextInputType.emailAddress,
                               style: const TextStyle(color: Color(0xFF333333), fontSize: 16), // Font size
                               decoration: InputDecoration(
-                                prefixIcon: const Icon(Icons.person, color: Color(0xFFFF7043), size: 20), // Icon size
-                                hintText: 'Username or Email',
+                                prefixIcon: const Icon(Icons.email, color: Color(0xFFFF7043), size: 20), // Icon size
+                                hintText: 'Enter your email',
                                 hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 15),
-                                labelText: 'Username or Email',
+                                labelText: 'Email',
                                 labelStyle: const TextStyle(color: Color(0xFF666666), fontSize: 15),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10.0), // Rounded corners
@@ -183,9 +198,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'Please enter your username or email';
+                                  return 'Please enter your email';
                                 }
-                                if (!value.contains('@') || !value.contains('.')) {
+                                if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
                                   return 'Please enter a valid email address';
                                 }
                                 return null;
@@ -198,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               style: const TextStyle(color: Color(0xFF333333), fontSize: 16), // Font size
                               decoration: InputDecoration(
                                 prefixIcon: const Icon(Icons.lock, color: Color(0xFFFF7043), size: 20), // Icon size
-                                hintText: 'Password',
+                                hintText: 'Enter your password',
                                 hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 15),
                                 labelText: 'Password',
                                 labelStyle: const TextStyle(color: Color(0xFF666666), fontSize: 15),
@@ -233,37 +248,86 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'Please enter your password';
+                                  return 'Please enter a password';
                                 }
-                                if (value.length < 6) {
-                                  return 'Password too short.';
+                                if (!_passwordRegex.hasMatch(value)) {
+                                  return 'Password must be at least 8 characters long, and contain at least one uppercase letter, one lowercase letter, one digit, and one special character.';
                                 }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 8), // Adjusted spacing
                             Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {
-                                  print('Forgot Password clicked');
-                                  // TODO: Navigate to Forgot Password screen
-                                },
-                                style: TextButton.styleFrom(padding: EdgeInsets.zero), // Remove default text button padding
-                                child: const Text(
-                                  'Forgot Password?',
-                                  style: TextStyle(color: Color(0xFFFF7043), fontSize: 14), // Font size
+                              alignment: Alignment.centerLeft,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 8.0), // Adjusted padding
+                                child: Text(
+                                  'Min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special char',
+                                  style: const TextStyle(
+                                    fontSize: 11, // Adjusted font size
+                                    color: Color(0xFF999999), // Light grey hint text
+                                  ),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 18), // Adjusted spacing
+                            TextFormField(
+                              controller: _confirmPasswordController,
+                              obscureText: !_isConfirmPasswordVisible,
+                              style: const TextStyle(color: Color(0xFF333333), fontSize: 16), // Font size
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.lock, color: Color(0xFFFF7043), size: 20), // Icon size
+                                hintText: 'Confirm your password',
+                                hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 15),
+                                labelText: 'Confirm Password',
+                                labelStyle: const TextStyle(color: Color(0xFF666666), fontSize: 15),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                                    color: const Color(0xFF666666), // Medium grey icon color
+                                    size: 20, // Icon size
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                                    });
+                                  },
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10.0), // Rounded corners
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFFF0F0F0), // Light grey fill color
+                                contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0), // Compact padding
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10.0), // Rounded corners
+                                  borderSide: const BorderSide(color: Color(0xFFFF7043), width: 2),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10.0), // Rounded corners
+                                  borderSide: BorderSide.none,
+                                ),
+                                isDense: true, // Make input more compact
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please confirm your password';
+                                }
+                                if (value != _passwordController.text) {
+                                  return 'Passwords do not match';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 25), // Adjusted spacing
                             SizedBox(
                               width: double.infinity,
                               height: 50, // Adjusted height
-                              child: _isLoading
+                              child: _isLoading // Show CircularProgressIndicator when loading
                                   ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF7043))) // Accent color
                                   : ElevatedButton(
-                                      onPressed: _login,
+                                      onPressed: _signUp,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFFFF7043), // Accent color
                                         foregroundColor: Colors.white, // White text on bright button
@@ -273,7 +337,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         padding: const EdgeInsets.symmetric(vertical: 15.0),
                                         elevation: 8,
                                       ),
-                                      child: const Text('Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                      child: const Text('Sign Up', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                                     ),
                             ),
                           ],
@@ -286,16 +350,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text(
-                        "Don't have an account?",
+                        "Already have an account?",
                         style: TextStyle(color: Color(0xFF666666), fontSize: 14), // Font size
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateAccountScreen()));
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
                         },
                         style: TextButton.styleFrom(padding: EdgeInsets.zero), // Remove default text button padding
                         child: const Text(
-                          'Create Account',
+                          'Login',
                           style: TextStyle(
                             color: Color(0xFFFF7043), // Accent color
                             fontWeight: FontWeight.bold,

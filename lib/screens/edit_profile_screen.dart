@@ -1,16 +1,13 @@
+import 'package:cash/model/user_profile_model.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // For date formatting
+import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:app_config/app_config.dart';
-
-import '../utils/backend_config.dart';
+ // Make sure this path is correct
 
 class EditProfileScreen extends StatefulWidget {
-  final Map<String, dynamic> user;
-
-  const EditProfileScreen({super.key, required this.user});
+  final UserProfile userProfile; // The profile to be edited
+  const EditProfileScreen({super.key, required this.userProfile});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -18,57 +15,43 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _usernameController;
-  late TextEditingController _phoneController;
-  late TextEditingController _addressController;
+  late TextEditingController _nameController;
   late TextEditingController _emailController;
+  late TextEditingController _mobileNumberController;
+  late TextEditingController _addressController;
   late TextEditingController _cityController;
   late TextEditingController _stateController;
 
   String? _selectedGender;
   DateTime? _selectedDateOfBirth;
+  bool _isLoading = false;
 
-  final List<String> _genders = ['Male', 'Female', 'Other'];
-  bool _isLoading = false; // Add loading state
+  // IMPORTANT: Replace with your actual API URL
+  // For Android Emulator, use 10.0.2.2 to access localhost on your computer.
+  // For a physical Android device, use your computer's actual local IP address (e.g., http://192.168.1.10/api).
+  // For iOS Simulator/device, 'http://localhost' often works if your server is on the same machine.
+  static const String _apiBaseUrl = 'http://localhost/api';
+  // Consider using HTTPS in production!
 
   @override
   void initState() {
     super.initState();
-    _usernameController = TextEditingController(
-      text: widget.user['username'] ?? '',
-    );
-    _phoneController = TextEditingController(text: widget.user['phone'] ?? '');
-    _addressController = TextEditingController(
-      text: widget.user['address'] ?? '',
-    );
-    _emailController = TextEditingController(text: widget.user['email'] ?? '');
-    _cityController = TextEditingController(text: widget.user['city'] ?? '');
-    _stateController = TextEditingController(text: widget.user['state'] ?? '');
-
-    // Initialize gender if available
-    if (_genders.contains(widget.user['gender'])) {
-      _selectedGender = widget.user['gender'];
-    }
-
-    // Initialize date of birth if available
-    if (widget.user['date_of_birth'] != null) {
-      try {
-        _selectedDateOfBirth = DateTime.parse(widget.user['date_of_birth']);
-      } catch (e) {
-        // Handle parsing error if date format from backend is unexpected
-        print(
-          'Error parsing date of birth: ${widget.user['date_of_birth']} - $e',
-        );
-      }
-    }
+    _nameController = TextEditingController(text: widget.userProfile.name);
+    _emailController = TextEditingController(text: widget.userProfile.email);
+    _mobileNumberController = TextEditingController(text: widget.userProfile.mobileNumber);
+    _addressController = TextEditingController(text: widget.userProfile.address);
+    _cityController = TextEditingController(text: widget.userProfile.city);
+    _stateController = TextEditingController(text: widget.userProfile.state);
+    _selectedGender = widget.userProfile.gender;
+    _selectedDateOfBirth = widget.userProfile.dateOfBirth;
   }
 
   @override
   void dispose() {
-    _usernameController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
+    _nameController.dispose();
     _emailController.dispose();
+    _mobileNumberController.dispose();
+    _addressController.dispose();
     _cityController.dispose();
     _stateController.dispose();
     super.dispose();
@@ -77,9 +60,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _selectDateOfBirth(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDateOfBirth ?? DateTime.now(),
+      initialDate: _selectedDateOfBirth ?? DateTime.now().subtract(const Duration(days: 365 * 18)), // Default to 18 years ago
       firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
+      lastDate: DateTime.now().subtract(const Duration(days: 365 * 5)), // Max 5 years old
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFFFF7043), // Accent orange
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Color(0xFF333333),
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFFF7043),
+              ),
+            ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null && picked != _selectedDateOfBirth) {
       setState(() {
@@ -88,87 +89,67 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  Future<void> _saveProfile() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() => _isLoading = true);
+  Future<void> _saveProfileChanges() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
 
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getInt('userId');
-
-      if (userId == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('User not logged in.')));
-        }
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Prepare data to send to backend
-      final Map<String, dynamic> updatedData = {
-        'user_id': userId,
-        'phone': _phoneController.text.trim(),
-        'address': _addressController.text.trim(),
-        'gender': _selectedGender,
-        'email': _emailController.text.trim(),
-        'city': _cityController.text.trim(),
-        'state': _stateController.text.trim(),
-        'date_of_birth':
-            _selectedDateOfBirth != null
-                ? DateFormat('yyyy-MM-dd').format(_selectedDateOfBirth!)
-                : null,
-      };
-
-      // Remove null or empty values to avoid sending unnecessary data
-      updatedData.removeWhere(
-        (key, value) => value == null || (value is String && value.isEmpty),
+      final updatedProfile = widget.userProfile.copyWith(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        mobileNumber: _mobileNumberController.text.trim(),
+        address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+        city: _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
+        state: _stateController.text.trim().isEmpty ? null : _stateController.text.trim(),
+        gender: _selectedGender,
+        dateOfBirth: _selectedDateOfBirth,
       );
 
       try {
         final response = await http.post(
-          Uri.parse('${BackendConfig.baseUrl}/profile.php'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(updatedData),
+          Uri.parse('$_apiBaseUrl/update_user_profile.php'), // Your update profile API endpoint
+          headers: <String, String>{
+            'Content-Type': 'application/json; charset=UTF-8',
+            // IMPORTANT: In a real app, include your auth token here:
+            // 'Authorization': 'Bearer YOUR_AUTH_TOKEN',
+          },
+          body: jsonEncode(updatedProfile.toJson()),
         );
 
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+
         if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data['success']) {
-            if (mounted) {
+          if (mounted) {
+            if (responseData['success']) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profile updated successfully!')),
+                SnackBar(content: Text(responseData['message'])),
               );
-              // Navigate back and indicate success
-              Navigator.pop(context, true);
-            }
-          } else {
-            if (mounted) {
+              Navigator.pop(context, updatedProfile); // Pop with the updated profile object
+            } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(data['message'] ?? 'Failed to update profile.'),
-                ),
+                SnackBar(content: Text('Error: ${responseData['message']}')),
               );
             }
           }
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Failed to update profile: Server error.'),
-              ),
+              SnackBar(content: Text('Server error: ${response.statusCode}. Please try again. ${responseData['message'] ?? ''}')),
             );
           }
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to connect to server: $e. Is the server running?')),
+          );
         }
       } finally {
         if (mounted) {
-          setState(() => _isLoading = false);
+          setState(() {
+            _isLoading = false;
+          });
         }
       }
     }
@@ -177,120 +158,171 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profile')),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
-                  child: ListView(
-                    children: <Widget>[
-                      // Username (Read-only)
-                      TextFormField(
-                        controller: _usernameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Username',
-                        ),
-                        readOnly: true,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Phone Number
-                      TextFormField(
-                        controller: _phoneController,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone Number',
-                        ),
-                        keyboardType: TextInputType.phone,
+      backgroundColor: const Color(0xFFF0F0F0), // Light background
+      appBar: AppBar(
+        title: const Text('Edit Profile', style: TextStyle(color: Color(0xFF333333), fontSize: 20)),
+        backgroundColor: const Color(0xFFF0F0F0),
+        foregroundColor: const Color(0xFF333333),
+        elevation: 0,
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18.0)),
+            color: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(
+                      Icons.person_outline,
+                      size: 70,
+                      color: Color(0xFFFF7043),
+                    ),
+                    const SizedBox(height: 25),
+                    _buildTextField(_nameController, 'Name', Icons.person,
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your phone number';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Email
-                      TextFormField(
-                        controller: _emailController,
-                        decoration: const InputDecoration(labelText: 'Email'),
-                        keyboardType: TextInputType.emailAddress,
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your name';
+                      }
+                      return null;
+                    }),
+                    const SizedBox(height: 18),
+                    _buildTextField(_emailController, 'Email', Icons.email,
                         validator: (value) {
-                          if (value != null &&
-                              value.isNotEmpty &&
-                              !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                            return 'Enter a valid email address';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Address
-                      TextFormField(
-                        controller: _addressController,
-                        decoration: const InputDecoration(labelText: 'Address'),
-                        maxLines: 2,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // City
-                      TextFormField(
-                        controller: _cityController,
-                        decoration: const InputDecoration(labelText: 'City'),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // State
-                      TextFormField(
-                        controller: _stateController,
-                        decoration: const InputDecoration(labelText: 'State'),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Gender Dropdown
-                      DropdownButtonFormField<String>(
-                        value: _selectedGender,
-                        decoration: const InputDecoration(labelText: 'Gender'),
-                        items:
-                            _genders.map((String gender) {
-                              return DropdownMenuItem<String>(
-                                value: gender,
-                                child: Text(gender),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _selectedGender = newValue;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Date of Birth Picker
-                      ListTile(
-                        title: Text(
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                        return 'Enter a valid email address';
+                      }
+                      return null;
+                    }, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 18),
+                    _buildTextField(_mobileNumberController, 'Mobile Number', Icons.phone,
+                        validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your mobile number';
+                      }
+                      if (!RegExp(r'^[0-9]{10}$').hasMatch(value.trim())) {
+                        return 'Enter a valid 10-digit mobile number';
+                      }
+                      return null;
+                    }, keyboardType: TextInputType.phone),
+                    const SizedBox(height: 18),
+                    _buildTextField(_addressController, 'Address', Icons.location_on),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(_cityController, 'City', Icons.location_city),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildTextField(_stateController, 'State', Icons.map),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    DropdownButtonFormField<String>(
+                      value: _selectedGender,
+                      decoration: _inputDecoration('Gender', Icons.wc),
+                      items: <String>['Male', 'Female', 'Other']
+                          .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedGender = newValue;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                    InkWell(
+                      onTap: () => _selectDateOfBirth(context),
+                      child: InputDecorator(
+                        decoration: _inputDecoration('Date of Birth', Icons.calendar_today),
+                        child: Text(
                           _selectedDateOfBirth == null
                               ? 'Select Date of Birth'
-                              : 'Date of Birth: ${DateFormat('yyyy-MM-dd').format(_selectedDateOfBirth!)}',
+                              : DateFormat('dd MMMӮ').format(_selectedDateOfBirth!),
+                          style: const TextStyle(fontSize: 16, color: Color(0xFF333333)),
                         ),
-                        trailing: const Icon(Icons.calendar_today),
-                        onTap: () => _selectDateOfBirth(context),
                       ),
-                      const SizedBox(height: 24),
-
-                      // Save Button
-                      ElevatedButton(
-                        onPressed: _saveProfile,
-                        child: const Text('Save Changes'),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF7043)))
+                          : ElevatedButton.icon(
+                              onPressed: _saveProfileChanges,
+                              icon: const Icon(Icons.save, size: 24),
+                              label: const Text('Save Changes', style: TextStyle(fontSize: 16)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF7043),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                elevation: 8,
+                              ),
+                            ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper for consistent text field decoration
+  InputDecoration _inputDecoration(String labelText, IconData icon) {
+    return InputDecoration(
+      labelText: labelText,
+      labelStyle: const TextStyle(color: Color(0xFF666666), fontSize: 15),
+      prefixIcon: Icon(icon, color: const Color(0xFFFF7043), size: 20),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.0),
+        borderSide: BorderSide.none,
+      ),
+      filled: true,
+      fillColor: const Color(0xFFF0F0F0),
+      contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.0),
+        borderSide: const BorderSide(color: Color(0xFFFF7043), width: 2),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.0),
+        borderSide: BorderSide.none,
+      ),
+      isDense: true,
+    );
+  }
+
+  // Helper for consistent text field creation
+  Widget _buildTextField(TextEditingController controller, String label, IconData icon,
+      {String? Function(String?)? validator, TextInputType? keyboardType}) { // Named parameters {}
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: const TextStyle(color: Color(0xFF333333), fontSize: 16),
+      decoration: _inputDecoration(label, icon),
+      validator: validator,
     );
   }
 }
