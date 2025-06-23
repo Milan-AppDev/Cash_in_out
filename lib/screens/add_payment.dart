@@ -33,7 +33,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
       status: _status,
     );
 
-    final ip = '192.168.160.251';
+    final ip = '192.168.43.251';
     final response = await http.post(
       Uri.parse('http://$ip/backend/payments.php'),
       headers: {'Content-Type': 'application/json'},

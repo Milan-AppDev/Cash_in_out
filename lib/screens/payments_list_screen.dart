@@ -16,7 +16,7 @@ class PaymentsListPage extends StatefulWidget {
 class _PaymentsListPageState extends State<PaymentsListPage> {
   List<Payment> payments = [];
   Future<void> fetchPayments() async {
-    final ip = '192.168.160.251';
+    final ip = '192.168.43.251';
     final response = await http.get(
       Uri.parse('http://$ip/backend/payments.php'),
     );
@@ -49,7 +49,7 @@ class _PaymentsListPageState extends State<PaymentsListPage> {
   }
 
   Future<List<Client>> fetchClients() async {
-    final ip = '192.168.160.251';
+    final ip = '192.168.43.251';
     final response = await http.get(
       Uri.parse('http://$ip/backend/clients.php'),
     );

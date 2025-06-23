@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../main.dart'; // Make sure this path is correct based on your project structure
+
 import 'client_list_page.dart';
 import 'payments_list_screen.dart';
 import 'transactions_list_screen.dart';
@@ -14,14 +16,19 @@ class HomeScreen extends StatelessWidget {
         title: const Text('Cash In-Out'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.brightness_6),
+            onPressed: () {
+              themeNotifier.value =
+                  themeNotifier.value == ThemeMode.light
+                      ? ThemeMode.dark
+                      : ThemeMode.light;
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
               // Navigate back to splash screen
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/',
-                (route) => false,
-              );
+              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
             },
           ),
         ],
@@ -86,31 +93,22 @@ class HomeScreen extends StatelessWidget {
   ) {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 48,
-              color: color,
-            ),
+            Icon(icon, size: 48, color: color),
             const SizedBox(height: 8),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
       ),
     );
   }
-} 
+}

@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final password = _passwordController.text;
 
       try {
-        final ip = '192.168.160.251';
+        final ip = '192.168.43.251';
         final response = await http.post(
           Uri.parse('http://$ip/backend/login.php'),
           body: {'username': username, 'password': password},
