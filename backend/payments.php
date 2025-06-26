@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Validate
-    $required = ['client_id', 'amount', 'timestamp', 'tag', 'note', 'status'];
+$required = ['client_id', 'amount', 'timestamp', 'tag', 'note', 'status']; // installment_id optional
     foreach ($required as $field) {
         if (!isset($data[$field])) {
             echo json_encode(["success" => false, "message" => "Missing field: $field"]);
@@ -44,16 +44,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tag = $data['tag'];
     $note = $data['note'];
     $status = $data['status'];
+$installment_id = isset($data['installment_id']) ? intval($data['installment_id']) : null;
 
-$stmt = $conn->prepare("INSERT INTO payments (client_id, amount, timestamp, tag, note, status) VALUES (?, ?, ?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO payments (client_id, amount, timestamp, tag, note, status, installment_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
     if (!$stmt) {
         echo json_encode(["success" => false, "message" => "Prepare failed", "error" => $conn->error]);
         exit();
     }
 
-$stmt->bind_param("idssss", $client_id, $amount, $timestamp, $tag, $note, $status);
+$stmt->bind_param("idssssi", $client_id, $amount, $timestamp, $tag, $note, $status, $installment_id);
     $success = $stmt->execute();
-
+if ($success && $installment_id) {
+    $conn->query("UPDATE installments SET status = 'Paid' WHERE id = $installment_id");
+}
     if ($success) {
         echo json_encode(["success" => true, "message" => "Payment added"]);
     } else {

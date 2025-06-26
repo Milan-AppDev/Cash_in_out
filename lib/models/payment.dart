@@ -6,6 +6,7 @@ class Payment {
   final String tag;
   final String note;
   final String status;
+  final int? installmentId; // ✅ NEW
 
   Payment({
     this.id,
@@ -15,6 +16,7 @@ class Payment {
     required this.tag,
     required this.note,
     required this.status,
+    this.installmentId,
   });
 
   factory Payment.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,10 @@ class Payment {
       tag: json['tag'],
       note: json['note'],
       status: json['status'],
+      installmentId:
+          json['installment_id'] != null
+              ? int.tryParse(json['installment_id'].toString())
+              : null,
     );
   }
 
@@ -36,5 +42,6 @@ class Payment {
     'tag': tag,
     'note': note,
     'status': status,
+    'installment_id': installmentId,
   };
 }

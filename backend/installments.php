@@ -28,10 +28,10 @@ if ($method === 'POST') {
     $client_id = intval($data['client_id']);
     $amount = floatval($data['amount']);
     $months = intval($data['months']);
-    $start_date = new DateTime($data['start_date']); // ✅ Fixed here
+    $start_date = new DateTime($data['start_date']);
     $monthly_amount = round($amount / $months, 2);
 
-    // Step 1: Insert into installment_plans
+    // Insert into installment_plans
     $planStmt = $conn->prepare("INSERT INTO installment_plans (client_id, total_amount, months, start_date) VALUES (?, ?, ?, ?)");
     $planStmt->bind_param("iids", $client_id, $amount, $months, $data['start_date']);
     $planStmt->execute();
@@ -43,7 +43,7 @@ if ($method === 'POST') {
 
     $plan_id = $planStmt->insert_id;
 
-    // Step 2: Insert monthly installments
+    // Insert monthly installments
     $stmt = $conn->prepare("INSERT INTO installments (plan_id, month_year, amount, status) VALUES (?, ?, ?, 'Pending')");
     for ($i = 0; $i < $months; $i++) {
         $monthYear = $start_date->format('Y-m');
@@ -60,11 +60,16 @@ if ($method === 'POST') {
 if ($method === 'GET') {
     $type = $_GET['type'] ?? null;
 
-    // Get all plans for a client
-    if ($type === 'plans' && isset($_GET['client_id'])) {
-        $client_id = intval($_GET['client_id']);
-        $stmt = $conn->prepare("SELECT * FROM installment_plans WHERE client_id = ?");
-        $stmt->bind_param("i", $client_id);
+    // ✅ Fetch installment plans (all or filtered by client)
+    if ($type === 'plans') {
+        if (isset($_GET['client_id'])) {
+            $client_id = intval($_GET['client_id']);
+            $stmt = $conn->prepare("SELECT * FROM installment_plans WHERE client_id = ?");
+            $stmt->bind_param("i", $client_id);
+        } else {
+            $stmt = $conn->prepare("SELECT * FROM installment_plans");
+        }
+
         $stmt->execute();
         $result = $stmt->get_result();
 
@@ -77,20 +82,45 @@ if ($method === 'GET') {
         exit;
     }
 
-    // Get all monthly installments for a plan
+    // ✅ Fetch monthly installments by plan_id
     if ($type === 'installments' && isset($_GET['plan_id'])) {
         $plan_id = intval($_GET['plan_id']);
         $stmt = $conn->prepare("SELECT * FROM installments WHERE plan_id = ?");
         $stmt->bind_param("i", $plan_id);
         $stmt->execute();
-        $result = $stmt->get_result();
 
+        $result = $stmt->get_result();
         $installments = [];
+
         while ($row = $result->fetch_assoc()) {
             $installments[] = $row;
         }
 
         echo json_encode(["success" => true, "data" => $installments]);
+        exit;
+    }
+
+    // ✅ Fetch pending installments by client_id (for AddPaymentPage)
+    if ($type === 'pending' && isset($_GET['client_id'])) {
+        $client_id = intval($_GET['client_id']);
+        $stmt = $conn->prepare("
+            SELECT i.id, i.month_year, i.amount 
+            FROM installments i
+            JOIN installment_plans p ON i.plan_id = p.id
+            WHERE i.status = 'Pending' AND p.client_id = ?
+            ORDER BY i.month_year ASC
+        ");
+        $stmt->bind_param("i", $client_id);
+        $stmt->execute();
+
+        $result = $stmt->get_result();
+        $pending = [];
+
+        while ($row = $result->fetch_assoc()) {
+            $pending[] = $row;
+        }
+
+        echo json_encode(["success" => true, "data" => $pending]);
         exit;
     }
 

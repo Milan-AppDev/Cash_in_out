@@ -6,6 +6,7 @@ import '../models/client.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config.dart';
+
 class PaymentsListPage extends StatefulWidget {
   const PaymentsListPage({super.key});
 
@@ -104,7 +105,10 @@ class _PaymentsListPageState extends State<PaymentsListPage> {
                     margin: const EdgeInsets.all(8),
                     child: ListTile(
                       title: Text('₹${p.amount.toStringAsFixed(2)}'),
-                      subtitle: Text('${p.tag} - ${p.note}'),
+                      subtitle: Text(
+                        '${p.tag} - ${p.note}' +
+                            (p.installmentId != null ? ' (Installment)' : ''),
+                      ),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

@@ -1,4 +1,3 @@
-// 📁 lib/screens/installments_list_screen.dart
 import 'package:flutter/material.dart';
 import '../models/client.dart';
 import 'add_installment.dart';
@@ -16,18 +15,19 @@ class InstallmentsListScreen extends StatefulWidget {
 
 class _InstallmentsListScreenState extends State<InstallmentsListScreen> {
   List installments = [];
+  Map<int, String> clientNames = {};
 
   @override
   void initState() {
     super.initState();
-    fetchInstallments();
+    fetchClients(); // First get client names
+    fetchInstallments(); // Then get installment data
   }
 
   Future<void> fetchInstallments() async {
     final response = await http.get(
-      Uri.parse('http://$ip/backend/installments.php?type=plans&client_id=2'),
+      Uri.parse('http://$ip/backend/installments.php?type=plans'),
     );
-    print('Response: ${response.body}');
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       if (data['success']) {
@@ -38,37 +38,48 @@ class _InstallmentsListScreenState extends State<InstallmentsListScreen> {
     }
   }
 
-  Future<List<Client>> fetchClients() async {
+  Future<void> fetchClients() async {
     final response = await http.get(
       Uri.parse('http://$ip/backend/clients.php'),
     );
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       if (data['success']) {
-        return List<Client>.from(data['data'].map((c) => Client.fromJson(c)));
+        final clients = List<Client>.from(
+          data['data'].map((c) => Client.fromJson(c)),
+        );
+        setState(() {
+          clientNames = {for (var client in clients) client.id!: client.name};
+        });
       }
     }
-    return [];
   }
 
   void _navigateToAddInstallment() async {
-    final clients = await fetchClients();
-    if (clients.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No clients available")));
-      return;
-    }
-
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddInstallmentPlanPage(clients: clients),
-      ),
+    final response = await http.get(
+      Uri.parse('http://$ip/backend/clients.php'),
     );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success']) {
+        final clients = List<Client>.from(
+          data['data'].map((c) => Client.fromJson(c)),
+        );
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AddInstallmentPlanPage(clients: clients),
+          ),
+        );
 
-    if (result == true) {
-      fetchInstallments();
+        if (result == true) {
+          fetchInstallments();
+        }
+      } else {
+        showError("Failed to load clients");
+      }
+    } else {
+      showError("Failed to connect to server");
     }
   }
 
@@ -79,6 +90,12 @@ class _InstallmentsListScreenState extends State<InstallmentsListScreen> {
         builder: (_) => MonthlyInstallmentsPage(planId: planId),
       ),
     );
+  }
+
+  void showError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -92,11 +109,15 @@ class _InstallmentsListScreenState extends State<InstallmentsListScreen> {
                 itemCount: installments.length,
                 itemBuilder: (context, index) {
                   final i = installments[index];
+                  final clientId = i['client_id'];
+                  final clientName =
+                      clientNames[clientId] ?? 'Client #$clientId';
+
                   return Card(
                     margin: const EdgeInsets.all(8),
                     child: ListTile(
                       onTap: () => _openMonthlyInstallments(i['id']),
-                      title: Text('Client ID: ${i['client_id']}'),
+                      title: Text('Client: $clientName'),
                       subtitle: Text(
                         'Total: ₹${i['total_amount']}, Months: ${i['months']}, Start: ${i['start_date']}',
                       ),
