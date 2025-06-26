@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import '../config.dart';
 import 'package:cash_in_out/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -35,7 +35,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final username = _usernameController.text.trim();
       final password = _passwordController.text;
       try {
-        final ip = '192.168.43.251';
+        // final ip = '192.168.43.251';
 
         final response = await http.post(
           Uri.parse('http://$ip/backend/signup.php'),

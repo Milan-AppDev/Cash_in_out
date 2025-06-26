@@ -3,7 +3,7 @@ import '../models/client.dart';
 import 'add_edit_client_page.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import '../config.dart';
 class ClientListPage extends StatefulWidget {
   @override
   _ClientListPageState createState() => _ClientListPageState();
@@ -12,7 +12,7 @@ class ClientListPage extends StatefulWidget {
 class _ClientListPageState extends State<ClientListPage> {
   List<Client> clients = [];
   Future<void> fetchClientsFromBackend() async {
-    final ip = '192.168.43.251';
+    // final ip = '192.168.43.251';
     final response = await http.get(
       Uri.parse('http://$ip/backend/clients.php'),
     );
@@ -38,7 +38,7 @@ class _ClientListPageState extends State<ClientListPage> {
   }
 
   void addClient(Client client) async {
-    final ip = '192.168.43.251';
+    // final ip = '192.168.43.251';
     final url = Uri.parse('http://$ip/backend/clients.php');
 
     try {
@@ -80,7 +80,7 @@ class _ClientListPageState extends State<ClientListPage> {
   }
 
   void editClient(int index, Client client) async {
-    final ip = '192.168.43.251';
+    // final ip = '192.168.43.251';
     final url = Uri.parse('http://$ip/backend/clients.php');
 
     final response = await http.put(
@@ -101,7 +101,7 @@ class _ClientListPageState extends State<ClientListPage> {
 
   void deleteClient(int index) async {
     final clientId = clients[index].id;
-    final ip = '192.168.43.251';
+    // final ip = '192.168.43.251';
     final url = Uri.parse('http://$ip/backend/clients.php?id=$clientId');
 
     final response = await http.delete(url);

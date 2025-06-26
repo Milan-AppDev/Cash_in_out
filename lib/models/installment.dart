@@ -18,10 +18,9 @@ class Installment {
   });
 
   bool get isPaid => status == InstallmentStatus.paid;
-  
-  bool get isOverdue => 
-      status == InstallmentStatus.pending && 
-      DateTime.now().isAfter(dueDate);
+
+  bool get isOverdue =>
+      status == InstallmentStatus.pending && DateTime.now().isAfter(dueDate);
 
   Installment copyWith({
     String? id,
@@ -61,9 +60,10 @@ class Installment {
       paymentId: json['paymentId'] as String,
       amount: json['amount'] as double,
       dueDate: DateTime.parse(json['dueDate'] as String),
-      paidDate: json['paidDate'] != null 
-          ? DateTime.parse(json['paidDate'] as String)
-          : null,
+      paidDate:
+          json['paidDate'] != null
+              ? DateTime.parse(json['paidDate'] as String)
+              : null,
       status: InstallmentStatus.values.firstWhere(
         (e) => e.toString() == json['status'],
         orElse: () => InstallmentStatus.pending,
@@ -73,9 +73,4 @@ class Installment {
   }
 }
 
-enum InstallmentStatus {
-  pending,
-  paid,
-  overdue,
-  cancelled
-} 
+enum InstallmentStatus { pending, paid, overdue, cancelled }

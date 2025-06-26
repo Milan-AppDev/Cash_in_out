@@ -3,7 +3,7 @@ import '../models/client.dart';
 import '../models/payment.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import '../config.dart';
 class AddPaymentPage extends StatefulWidget {
   final List<Client> clients;
 
@@ -33,7 +33,8 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
       status: _status,
     );
 
-    final ip = '192.168.43.251';
+    // final ip = '192.168.43.251';/
+
     final response = await http.post(
       Uri.parse('http://$ip/backend/payments.php'),
       headers: {'Content-Type': 'application/json'},
